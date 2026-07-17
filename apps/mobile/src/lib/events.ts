@@ -15,6 +15,7 @@ export type EventListItem = {
   state: string | null;
   address: string | null; // null for chefs until 15h before the event
   assignment_status?: string;
+  assignmentId?: string;
 };
 
 export async function fetchEventsForRole(
@@ -25,7 +26,7 @@ export async function fetchEventsForRole(
     const { data, error } = await supabase
       .from('chef_visible_events')
       .select(
-        'id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status'
+        'id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
       )
       .order('event_date', { ascending: true });
 
@@ -42,6 +43,7 @@ export async function fetchEventsForRole(
         state: e.state,
         address: e.visible_address,
         assignment_status: e.assignment_status,
+        assignmentId: e.assignment_id,
       })),
       error: null,
     };

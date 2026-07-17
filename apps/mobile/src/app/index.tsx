@@ -6,10 +6,56 @@ import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
 import { fetchEventsForRole, createEvent, type EventListItem } from '@/lib/events';
+import { assignChefByEmail, respondToAssignment } from '@/lib/assignments';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
-function EventRow({ item, isChef }: { item: EventListItem; isChef: boolean }) {
+function EventRow({
+  item,
+  isChef,
+  isManagement,
+  onAssign,
+  onRespond,
+}: {
+  item: EventListItem;
+  isChef: boolean;
+  isManagement: boolean;
+  onAssign: (eventId: string, chefEmail: string, role: string) => Promise<string | null>;
+  onRespond: (assignmentId: string, accept: boolean) => Promise<string | null>;
+}) {
+  const [assigning, setAssigning] = useState(false);
+  const [chefEmail, setChefEmail] = useState('');
+  const [assignRole, setAssignRole] = useState('lead_chef');
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
+  const [rowStatus, setRowStatus] = useState<string | null>(null);
+  const [responding, setResponding] = useState(false);
+
+  const handleAssignPress = async () => {
+    setRowStatus(null);
+    if (!chefEmail.trim()) {
+      setRowStatus("Enter the chef's email.");
+      return;
+    }
+    setAssignSubmitting(true);
+    const err = await onAssign(item.id, chefEmail.trim(), assignRole.trim());
+    setAssignSubmitting(false);
+    if (err) {
+      setRowStatus(err);
+    } else {
+      setChefEmail('');
+      setAssigning(false);
+      setRowStatus('Chef assigned.');
+    }
+  };
+
+  const handleRespondPress = async (accept: boolean) => {
+    if (!item.assignmentId) return;
+    setResponding(true);
+    const err = await onRespond(item.assignmentId, accept);
+    setResponding(false);
+    if (err) setRowStatus(err);
+  };
+
   return (
     <ThemedView style={styles.eventRow}>
       <ThemedText type="smallBold">
@@ -25,6 +71,58 @@ function EventRow({ item, isChef }: { item: EventListItem; isChef: boolean }) {
       {isChef && item.assignment_status ? (
         <ThemedText>Your assignment: {item.assignment_status}</ThemedText>
       ) : null}
+      {isChef && item.assignment_status === 'pending' && item.assignmentId ? (
+        <ThemedView style={styles.form}>
+          <ThemedText
+            onPress={responding ? undefined : () => handleRespondPress(true)}
+            style={[styles.button, responding && styles.buttonDisabled]}>
+            {responding ? 'Saving...' : 'Accept'}
+          </ThemedText>
+          <ThemedText
+            onPress={responding ? undefined : () => handleRespondPress(false)}
+            style={[styles.button, responding && styles.buttonDisabled]}>
+            Decline
+          </ThemedText>
+        </ThemedView>
+      ) : null}
+      {isManagement && !assigning ? (
+        <ThemedText onPress={() => setAssigning(true)} style={styles.button}>
+          Assign chef
+        </ThemedText>
+      ) : null}
+      {isManagement && assigning ? (
+        <ThemedView style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Chef's email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={chefEmail}
+            onChangeText={setChefEmail}
+            editable={!assignSubmitting}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Role (default lead_chef)"
+            value={assignRole}
+            onChangeText={setAssignRole}
+            editable={!assignSubmitting}
+          />
+          <ThemedText
+            onPress={assignSubmitting ? undefined : handleAssignPress}
+            style={[styles.button, assignSubmitting && styles.buttonDisabled]}>
+            {assignSubmitting ? 'Assigning...' : 'Confirm assignment'}
+          </ThemedText>
+          <ThemedText
+            onPress={() => {
+              setAssigning(false);
+              setRowStatus(null);
+            }}>
+            Cancel
+          </ThemedText>
+        </ThemedView>
+      ) : null}
+      {rowStatus ? <ThemedText style={styles.error}>{rowStatus}</ThemedText> : null}
     </ThemedView>
   );
 }
@@ -61,6 +159,33 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadEvents();
   }, [loadEvents]);
+
+  const handleAssignChef = useCallback(
+    async (eventId: string, chefEmail: string, role: string): Promise<string | null> => {
+      if (!organizationId) return 'No organization selected.';
+      try {
+        await assignChefByEmail({ organizationId, eventId, chefEmail, role: role || undefined });
+        await loadEvents();
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : 'Could not assign chef.';
+      }
+    },
+    [organizationId, loadEvents]
+  );
+
+  const handleRespondToAssignment = useCallback(
+    async (assignmentId: string, accept: boolean): Promise<string | null> => {
+      try {
+        await respondToAssignment(assignmentId, accept);
+        await loadEvents();
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : 'Could not update assignment.';
+      }
+    },
+    [loadEvents]
+  );
 
   async function handleCreateEvent() {
     setEventFormStatus(null);
@@ -217,7 +342,15 @@ export default function HomeScreen() {
         <FlatList
           data={events}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <EventRow item={item} isChef={role === 'chef'} />}
+          renderItem={({ item }) => (
+              <EventRow
+                item={item}
+                isChef={role === 'chef'}
+                isManagement={isManagement}
+                onAssign={handleAssignChef}
+                onRespond={handleRespondToAssignment}
+              />
+            )}
           ListEmptyComponent={<ThemedText>No events yet.</ThemedText>}
         />
       )}
