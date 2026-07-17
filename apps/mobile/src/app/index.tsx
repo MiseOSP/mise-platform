@@ -7,6 +7,13 @@ import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
 import { fetchEventsForRole, createEvent, type EventListItem } from '@/lib/events';
 import { assignChefByEmail, respondToAssignment } from '@/lib/assignments';
+import {
+  getOrCreateEventConversation,
+  fetchMessages,
+  sendMessage,
+  resolveAppUserId,
+  type ChatMessage,
+} from '@/lib/messaging';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
@@ -16,12 +23,16 @@ function EventRow({
   isManagement,
   onAssign,
   onRespond,
+  organizationId,
+  authId,
 }: {
   item: EventListItem;
   isChef: boolean;
   isManagement: boolean;
   onAssign: (eventId: string, chefEmail: string, role: string) => Promise<string | null>;
   onRespond: (assignmentId: string, accept: boolean) => Promise<string | null>;
+  organizationId: string;
+  authId: string;
 }) {
   const [assigning, setAssigning] = useState(false);
   const [chefEmail, setChefEmail] = useState('');
@@ -29,6 +40,52 @@ function EventRow({
   const [assignSubmitting, setAssignSubmitting] = useState(false);
   const [rowStatus, setRowStatus] = useState<string | null>(null);
   const [responding, setResponding] = useState(false);
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [myAppUserId, setMyAppUserId] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  const handleOpenChat = async () => {
+    setChatOpen(true);
+    setChatError(null);
+    setChatLoading(true);
+    try {
+      const [userId, convoId] = await Promise.all([
+        myAppUserId ? Promise.resolve(myAppUserId) : resolveAppUserId(authId),
+        getOrCreateEventConversation(organizationId, item.id),
+      ]);
+      setMyAppUserId(userId);
+      setConversationId(convoId);
+      const result = await fetchMessages(convoId);
+      setMessages(result.data);
+      setChatError(result.error);
+    } catch (e) {
+      setChatError(e instanceof Error ? e.message : 'Could not load messages.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!conversationId || !myAppUserId || !draftText.trim()) return;
+    setSendingMessage(true);
+    try {
+      await sendMessage(myAppUserId, conversationId, draftText.trim());
+      setDraftText('');
+      const result = await fetchMessages(conversationId);
+      setMessages(result.data);
+      setChatError(result.error);
+    } catch (e) {
+      setChatError(e instanceof Error ? e.message : 'Could not send message.');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   const handleAssignPress = async () => {
     setRowStatus(null);
@@ -122,6 +179,36 @@ function EventRow({
           </ThemedText>
         </ThemedView>
       ) : null}
+      {!chatOpen ? (
+        <ThemedText onPress={handleOpenChat} style={styles.button}>
+          Messages
+        </ThemedText>
+      ) : (
+        <ThemedView style={styles.form}>
+          <ThemedText type="smallBold">Messages</ThemedText>
+          {chatLoading ? <ThemedText>Loading messages...</ThemedText> : null}
+          {messages.map((m) => (
+            <ThemedText key={m.id}>
+              {m.senderId === myAppUserId ? 'You' : 'Them'}: {m.message}
+            </ThemedText>
+          ))}
+          {!chatLoading && messages.length === 0 ? <ThemedText>No messages yet.</ThemedText> : null}
+          <TextInput
+            style={styles.input}
+            placeholder="Type a message"
+            value={draftText}
+            onChangeText={setDraftText}
+            editable={!sendingMessage}
+          />
+          <ThemedText
+            onPress={sendingMessage ? undefined : handleSendMessage}
+            style={[styles.button, sendingMessage && styles.buttonDisabled]}>
+            {sendingMessage ? 'Sending...' : 'Send'}
+          </ThemedText>
+          <ThemedText onPress={() => setChatOpen(false)}>Close</ThemedText>
+          {chatError ? <ThemedText style={styles.error}>{chatError}</ThemedText> : null}
+        </ThemedView>
+      )}
       {rowStatus ? <ThemedText style={styles.error}>{rowStatus}</ThemedText> : null}
     </ThemedView>
   );
@@ -349,6 +436,8 @@ export default function HomeScreen() {
                 isManagement={isManagement}
                 onAssign={handleAssignChef}
                 onRespond={handleRespondToAssignment}
+                organizationId={organizationId ?? ''}
+                authId={session.user.id}
               />
             )}
           ListEmptyComponent={<ThemedText>No events yet.</ThemedText>}
