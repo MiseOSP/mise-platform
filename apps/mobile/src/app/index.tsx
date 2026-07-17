@@ -5,7 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { AuthScreen } from '@/components/auth-screen';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
-import { createOrganizationForCurrentUser } from '@/lib/organizations';
+import { createOrganizationForCurrentUser, fetchTeamSize } from '@/lib/organizations';
 import { fetchEventsForRole, createEvent, type EventListItem } from '@/lib/events';
 import { assignChefByEmail, respondToAssignment } from '@/lib/assignments';
 import { fetchExperiences, type Experience } from '@/lib/experiences';
@@ -18,6 +18,45 @@ import {
 } from '@/lib/messaging';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
+
+function DashboardSummary({
+  isManagement,
+  isChef,
+  events,
+  teamSize,
+}: {
+  isManagement: boolean;
+  isChef: boolean;
+  events: EventListItem[];
+  teamSize: number | null;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcomingCount = events.filter((e) => e.event_date && e.event_date >= today).length;
+  const pendingResponseCount = events.filter((e) => e.assignment_status === 'pending').length;
+
+  const stats: { label: string; value: string | number }[] = [
+    { label: 'Upcoming events', value: upcomingCount },
+  ];
+  if (isChef) {
+    stats.push({ label: 'Needs your response', value: pendingResponseCount });
+  }
+  if (isManagement) {
+    stats.push({ label: 'Team members', value: teamSize ?? '\u2014' });
+  }
+
+  return (
+    <ThemedView style={styles.summaryRow}>
+      {stats.map((stat) => (
+        <ThemedView key={stat.label} style={styles.summaryCard}>
+          <ThemedText type="title" style={styles.summaryValue}>
+            {stat.value}
+          </ThemedText>
+          <ThemedText style={styles.summaryLabel}>{stat.label}</ThemedText>
+        </ThemedView>
+      ))}
+    </ThemedView>
+  );
+}
 
 function EventRow({
   item,
@@ -258,6 +297,22 @@ export default function HomeScreen() {
       .catch(() => setExperiences([]));
   }, [organizationId]);
 
+  const [teamSize, setTeamSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!organizationId || !isManagement) {
+      setTeamSize(null);
+      return;
+    }
+    let cancelled = false;
+    fetchTeamSize(organizationId).then((result) => {
+      if (!cancelled) setTeamSize(result.error ? null : result.count);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, isManagement]);
+
   const handleAssignChef = useCallback(
     async (eventId: string, chefEmail: string, role: string): Promise<string | null> => {
       if (!organizationId) return 'No organization selected.';
@@ -380,6 +435,13 @@ export default function HomeScreen() {
       <ThemedText type="title">{organizationName ?? 'Your organization'}</ThemedText>
       <ThemedText>Signed in as {role ?? 'member'}.</ThemedText>
 
+      <DashboardSummary
+        isManagement={isManagement}
+        isChef={role === 'chef'}
+        events={events}
+        teamSize={teamSize}
+      />
+
       {isManagement ? (
         <ThemedView style={styles.form}>
           <ThemedText
@@ -482,6 +544,28 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  summaryCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    gap: 4,
+  },
+  summaryValue: {
+    fontSize: 22,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    opacity: 0.7,
+    textAlign: 'center',
+  },
   container: {
     flex: 1,
     alignItems: 'stretch',

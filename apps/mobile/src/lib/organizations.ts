@@ -96,3 +96,16 @@ export async function createOrganizationForCurrentUser({
 
   throw new Error('Could not create organization: too many slug collisions.');
 }
+
+export async function fetchTeamSize(
+  organizationId: string
+): Promise<{ count: number; error: string | null }> {
+  const { count, error } = await supabase
+    .from('organization_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null);
+
+  if (error) return { count: 0, error: error.message };
+  return { count: count ?? 0, error: null };
+}
