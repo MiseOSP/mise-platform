@@ -44,6 +44,12 @@ export default function AppTabs() {
             </TabTrigger>
           )}
 
+          {hasOrg && (
+            <TabTrigger name="library" href="/library" asChild>
+              <TabButton>Library</TabButton>
+            </TabTrigger>
+          )}
+
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Account</TabButton>
           </TabTrigger>
