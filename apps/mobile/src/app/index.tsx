@@ -1,22 +1,58 @@
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, TextInput } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
+import { fetchEventsForRole, type EventListItem } from '@/lib/events';
 
-// Sprint 1: this is the Home tab's entry point. It branches on auth +
-// membership state rather than being a fixed marketing screen:
+// Sprint 1/2: Home tab branches on auth + membership state:
 //   1. no session            -> point the user at the Account tab to sign in
 //   2. session, no org yet   -> onboarding: create an organization (owner)
-//   3. session + org         -> placeholder dashboard (real dashboard per
-//                               Document 17 lands in a later slice)
+//   3. session + org         -> role-appropriate events list
+function EventRow({ item, isChef }: { item: EventListItem; isChef: boolean }) {
+  return (
+    <ThemedView style={styles.eventRow}>
+      <ThemedText type="smallBold">
+        {item.event_date} {item.start_time ?? ''}
+      </ThemedText>
+      <ThemedText>
+        {item.occasion ?? 'Event'} - {item.guest_count ?? '?'} guests - {item.status}
+      </ThemedText>
+      <ThemedText>
+        {item.address ? item.address : isChef ? 'Address available 15h before event' : ''}
+        {item.city ? `${item.address ? ', ' : ''}${item.city}, ${item.state ?? ''}` : ''}
+      </ThemedText>
+      {isChef && item.assignment_status ? (
+        <ThemedText>Your assignment: {item.assignment_status}</ThemedText>
+      ) : null}
+    </ThemedView>
+  );
+}
+
 export default function HomeScreen() {
   const { session, loading, role, organizationId, organizationName, refreshMembership } = useAuth();
   const [orgName, setOrgName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [events, setEvents] = useState<EventListItem[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+
+  const loadEvents = useCallback(async () => {
+    if (!organizationId) return;
+    setEventsLoading(true);
+    const { data, error: fetchError } = await fetchEventsForRole(role, organizationId);
+    setEvents(data);
+    setEventsError(fetchError);
+    setEventsLoading(false);
+  }, [role, organizationId]);
+
+  useEffect(() => {
+    void loadEvents();
+  }, [loadEvents]);
 
   if (loading) {
     return (
@@ -86,10 +122,19 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       <ThemedText type="title">{organizationName ?? 'Your organization'}</ThemedText>
       <ThemedText>Signed in as {role ?? 'member'}.</ThemedText>
-      <ThemedText>
-        This is a placeholder dashboard. The real Home screen (per Document 17) will replace this
-        in the next build slice.
-      </ThemedText>
+
+      {eventsLoading ? (
+        <ActivityIndicator />
+      ) : eventsError ? (
+        <ThemedText style={styles.error}>{eventsError}</ThemedText>
+      ) : (
+        <FlatList
+          data={events}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <EventRow item={item} isChef={role === 'chef'} />}
+          ListEmptyComponent={<ThemedText>No events yet.</ThemedText>}
+        />
+      )}
     </ThemedView>
   );
 }
@@ -98,7 +143,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'stretch',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 12,
     padding: 24,
   },
@@ -120,5 +165,11 @@ const styles = StyleSheet.create({
   },
   error: {
     color: '#d33',
+  },
+  eventRow: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ccc',
+    gap: 2,
   },
 });
