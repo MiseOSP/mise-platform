@@ -14,8 +14,14 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+
+const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
 export default function AppTabs() {
+  const { role } = useAuth();
+  const canManageTeam = !!role && MANAGEMENT_ROLES.has(role);
+
   return (
     <Tabs>
       <TabSlot style={{ height: '100%' }} />
@@ -24,6 +30,13 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
+
+          {canManageTeam && (
+            <TabTrigger name="team" href="/team" asChild>
+              <TabButton>Team</TabButton>
+            </TabTrigger>
+          )}
+
           <TabTrigger name="explore" href="/explore" asChild>
             <TabButton>Account</TabButton>
           </TabTrigger>

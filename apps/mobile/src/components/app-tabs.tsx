@@ -2,10 +2,15 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+
+const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const { role } = useAuth();
+  const canManageTeam = !!role && MANAGEMENT_ROLES.has(role);
 
   return (
     <NativeTabs
@@ -19,6 +24,17 @@ export default function AppTabs() {
           renderingMode="template"
         />
       </NativeTabs.Trigger>
+
+      {canManageTeam && (
+        // TODO: swap in a dedicated "team" icon asset -- reusing explore.png as a placeholder.
+        <NativeTabs.Trigger name="team">
+          <NativeTabs.Trigger.Label>Team</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            src={require('@/assets/images/tabIcons/explore.png')}
+            renderingMode="template"
+          />
+        </NativeTabs.Trigger>
+      )}
 
       <NativeTabs.Trigger name="explore">
         <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
