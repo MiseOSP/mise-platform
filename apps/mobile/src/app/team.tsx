@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { supabase } from '@/lib/supabase';
+import { addClientByEmail } from '@/lib/clients';
 
 type MemberRow = {
   id: string;
@@ -14,16 +15,8 @@ type MemberRow = {
   roles: { name: string } | null;
 };
 
-// Roles a manager can assign to someone else. 'owner' is intentionally
-// excluded from self-service assignment here -- ownership transfer is a more
-// sensitive operation to handle explicitly later.
 const ASSIGNABLE_ROLES = ['admin', 'manager', 'chef', 'client'];
 
-// Sprint 1: organization member management for owner/admin/manager. NOTE:
-// adding a member currently requires that person to have already signed up
-// with that email (we look them up in the app-level `users` table). A real
-// invite-by-email flow (via an Edge Function using the service role) is a
-// follow-up -- see supabase/functions/README.md.
 export default function TeamScreen() {
   const { organizationId } = useAuth();
   const [members, setMembers] = useState<MemberRow[]>([]);
@@ -32,6 +25,10 @@ export default function TeamScreen() {
   const [roleName, setRoleName] = useState<string>('client');
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientStatus, setClientStatus] = useState<string | null>(null);
+  const [clientSubmitting, setClientSubmitting] = useState(false);
 
   const loadMembers = useCallback(async () => {
     if (!organizationId) return;
@@ -98,6 +95,25 @@ export default function TeamScreen() {
     }
   }
 
+  async function handleAddClient() {
+    setClientStatus(null);
+    if (!organizationId) return;
+    if (!clientEmail.trim()) {
+      setClientStatus('Enter an email address.');
+      return;
+    }
+    setClientSubmitting(true);
+    try {
+      await addClientByEmail({ organizationId, email: clientEmail });
+      setClientStatus(`Added ${clientEmail.trim().toLowerCase()} as a client.`);
+      setClientEmail('');
+    } catch (e) {
+      setClientStatus(e instanceof Error ? e.message : 'Could not add client.');
+    } finally {
+      setClientSubmitting(false);
+    }
+  }
+
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title">Team</ThemedText>
@@ -145,6 +161,23 @@ export default function TeamScreen() {
           ListEmptyComponent={<ThemedText>No members yet.</ThemedText>}
         />
       )}
+
+      <ThemedText type="subtitle">Clients</ThemedText>
+      <ThemedView style={styles.form}>
+        <TextInput
+          style={styles.input}
+          placeholder="Client email"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={clientEmail}
+          onChangeText={setClientEmail}
+          editable={!clientSubmitting}
+        />
+        <ThemedText onPress={clientSubmitting ? undefined : handleAddClient} style={styles.button}>
+          {clientSubmitting ? 'Adding...' : 'Add client'}
+        </ThemedText>
+        {clientStatus ? <ThemedText>{clientStatus}</ThemedText> : null}
+      </ThemedView>
     </ThemedView>
   );
 }

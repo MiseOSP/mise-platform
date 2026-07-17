@@ -60,3 +60,55 @@ export async function fetchEventsForRole(
   if (error) return { data: [], error: error.message };
   return { data: (data ?? []) as EventListItem[], error: null };
 }
+
+export type CreateEventInput = {
+  organizationId: string;
+  clientEmail: string;
+  eventDate: string; // YYYY-MM-DD
+  startTime?: string; // HH:MM
+  guestCount?: number;
+  occasion?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+};
+
+// Creates an event for an existing client (looked up via client_profiles ->
+// users.email, scoped to this organization). Requires the client to already
+// have a client_profiles row -- use addClientByEmail (lib/clients.ts) first
+// if they don't.
+export async function createEvent(input: CreateEventInput): Promise<void> {
+  const trimmedEmail = input.clientEmail.trim().toLowerCase();
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', trimmedEmail)
+    .maybeSingle();
+  if (userError) throw userError;
+  if (!user) throw new Error(`No account found for ${trimmedEmail}.`);
+
+  const { data: clientProfile, error: clientError } = await supabase
+    .from('client_profiles')
+    .select('id')
+    .eq('organization_id', input.organizationId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (clientError) throw clientError;
+  if (!clientProfile) {
+    throw new Error(`${trimmedEmail} is not a client of this organization yet. Add them as a client first.`);
+  }
+
+  const { error: insertError } = await supabase.from('events').insert({
+    organization_id: input.organizationId,
+    client_id: clientProfile.id,
+    event_date: input.eventDate,
+    start_time: input.startTime || null,
+    guest_count: input.guestCount ?? null,
+    occasion: input.occasion || null,
+    address: input.address || null,
+    city: input.city || null,
+    state: input.state || null,
+  });
+  if (insertError) throw insertError;
+}

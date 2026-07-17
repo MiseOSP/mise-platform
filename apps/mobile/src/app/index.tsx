@@ -5,12 +5,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
-import { fetchEventsForRole, type EventListItem } from '@/lib/events';
+import { fetchEventsForRole, createEvent, type EventListItem } from '@/lib/events';
 
-// Sprint 1/2: Home tab branches on auth + membership state:
-//   1. no session            -> point the user at the Account tab to sign in
-//   2. session, no org yet   -> onboarding: create an organization (owner)
-//   3. session + org         -> role-appropriate events list
+const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
+
 function EventRow({ item, isChef }: { item: EventListItem; isChef: boolean }) {
   return (
     <ThemedView style={styles.eventRow}>
@@ -41,6 +39,16 @@ export default function HomeScreen() {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
 
+  const [showNewEvent, setShowNewEvent] = useState(false);
+  const [clientEmail, setClientEmail] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [occasion, setOccasion] = useState('');
+  const [guestCount, setGuestCount] = useState('');
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [eventFormStatus, setEventFormStatus] = useState<string | null>(null);
+
+  const isManagement = !!role && MANAGEMENT_ROLES.has(role);
+
   const loadEvents = useCallback(async () => {
     if (!organizationId) return;
     setEventsLoading(true);
@@ -53,6 +61,35 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadEvents();
   }, [loadEvents]);
+
+  async function handleCreateEvent() {
+    setEventFormStatus(null);
+    if (!organizationId) return;
+    if (!clientEmail.trim() || !eventDate.trim()) {
+      setEventFormStatus('Client email and event date (YYYY-MM-DD) are required.');
+      return;
+    }
+    setEventSubmitting(true);
+    try {
+      await createEvent({
+        organizationId,
+        clientEmail,
+        eventDate: eventDate.trim(),
+        occasion: occasion.trim() || undefined,
+        guestCount: guestCount.trim() ? Number(guestCount.trim()) : undefined,
+      });
+      setEventFormStatus('Event created.');
+      setClientEmail('');
+      setEventDate('');
+      setOccasion('');
+      setGuestCount('');
+      await loadEvents();
+    } catch (e) {
+      setEventFormStatus(e instanceof Error ? e.message : 'Could not create event.');
+    } finally {
+      setEventSubmitting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -123,6 +160,55 @@ export default function HomeScreen() {
       <ThemedText type="title">{organizationName ?? 'Your organization'}</ThemedText>
       <ThemedText>Signed in as {role ?? 'member'}.</ThemedText>
 
+      {isManagement ? (
+        <ThemedView style={styles.form}>
+          <ThemedText
+            onPress={() => setShowNewEvent((v) => !v)}
+            style={styles.button}>
+            {showNewEvent ? 'Cancel' : '+ New event'}
+          </ThemedText>
+          {showNewEvent ? (
+            <ThemedView style={styles.form}>
+              <TextInput
+                style={styles.input}
+                placeholder="Client email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={clientEmail}
+                onChangeText={setClientEmail}
+                editable={!eventSubmitting}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Event date (YYYY-MM-DD)"
+                value={eventDate}
+                onChangeText={setEventDate}
+                editable={!eventSubmitting}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Occasion (optional)"
+                value={occasion}
+                onChangeText={setOccasion}
+                editable={!eventSubmitting}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Guest count (optional)"
+                keyboardType="number-pad"
+                value={guestCount}
+                onChangeText={setGuestCount}
+                editable={!eventSubmitting}
+              />
+              <ThemedText onPress={eventSubmitting ? undefined : handleCreateEvent} style={styles.button}>
+                {eventSubmitting ? 'Creating...' : 'Create event'}
+              </ThemedText>
+              {eventFormStatus ? <ThemedText>{eventFormStatus}</ThemedText> : null}
+            </ThemedView>
+          ) : null}
+        </ThemedView>
+      ) : null}
+
       {eventsLoading ? (
         <ActivityIndicator />
       ) : eventsError ? (
@@ -165,6 +251,9 @@ const styles = StyleSheet.create({
   },
   error: {
     color: '#d33',
+  },
+  form: {
+    gap: 8,
   },
   eventRow: {
     paddingVertical: 10,
