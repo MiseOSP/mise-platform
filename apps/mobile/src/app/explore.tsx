@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { AuthScreen } from '@/components/auth-screen';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
-import { supabase } from '@/lib/supabase';
 import {
   fetchMyAgreementStatus,
   signCurrentAgreement,
@@ -16,8 +16,6 @@ import {
 // (Welcome / Chef Dashboard / Admin Dashboard) in later sprints.
 export default function AccountScreen() {
   const { session, loading, role, organizationId, organizationName, signOut } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   const [agreementsLoading, setAgreementsLoading] = useState(false);
   const [hasSignedCurrent, setHasSignedCurrent] = useState(false);
@@ -56,14 +54,6 @@ export default function AccountScreen() {
       setSignSubmitting(false);
     }
   };
-  const [status, setStatus] = useState<string | null>(null);
-
-  async function handleSignIn() {
-    setStatus('Signing in...');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setStatus(error ? error.message : null);
-  }
-
   if (loading) {
     return (
       <ThemedView style={styles.container}>
@@ -73,30 +63,7 @@ export default function AccountScreen() {
   }
 
   if (!session) {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedText type="title">Sign in</ThemedText>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <ThemedText onPress={handleSignIn} style={styles.button}>
-          Sign in
-        </ThemedText>
-        {status ? <ThemedText>{status}</ThemedText> : null}
-      </ThemedView>
-    );
+    return <AuthScreen />;
   }
 
   return (

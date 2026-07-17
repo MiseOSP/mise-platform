@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { AuthScreen } from '@/components/auth-screen';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
@@ -325,12 +326,7 @@ export default function HomeScreen() {
   }
 
   if (!session) {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedText type="title">Welcome to Mise</ThemedText>
-        <ThemedText>Sign in from the Account tab to get started.</ThemedText>
-      </ThemedView>
-    );
+    return <AuthScreen />;
   }
 
   if (!organizationId) {

@@ -28,6 +28,8 @@ type AuthContextValue = {
   organizationName: string | null;
   refreshMembership: () => Promise<void>;
   signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
 };
 
 const emptyMembership: Membership = {
@@ -43,6 +45,8 @@ const AuthContext = createContext<AuthContextValue>({
   ...emptyMembership,
   refreshMembership: async () => {},
   signOut: async () => {},
+  signIn: async () => ({ error: null }),
+  signUp: async () => ({ error: null }),
 });
 
 // Looks up the app-level `users` row and active organization_members / roles
@@ -126,6 +130,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    return { error: error?.message ?? null };
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -136,8 +150,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       organizationName: membership.organizationName,
       refreshMembership,
       signOut,
+      signIn,
+      signUp,
     }),
-    [session, loading, membership, refreshMembership, signOut]
+    [session, loading, membership, refreshMembership, signOut, signIn, signUp]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
