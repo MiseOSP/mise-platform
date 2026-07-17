@@ -1,100 +1,143 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
 export type OrgRole = 'owner' | 'admin' | 'manager' | 'chef' | 'client' | null;
 
+type Membership = {
+  userId: string | null;
+  role: OrgRole;
+  organizationId: string | null;
+  organizationName: string | null;
+};
+
 type AuthContextValue = {
   session: Session | null;
   loading: boolean;
+  userId: string | null;
   role: OrgRole;
   organizationId: string | null;
+  organizationName: string | null;
+  refreshMembership: () => Promise<void>;
   signOut: () => Promise<void>;
+};
+
+const emptyMembership: Membership = {
+  userId: null,
+  role: null,
+  organizationId: null,
+  organizationName: null,
 };
 
 const AuthContext = createContext<AuthContextValue>({
   session: null,
   loading: true,
-  role: null,
-  organizationId: null,
+  ...emptyMembership,
+  refreshMembership: async () => {},
   signOut: async () => {},
 });
 
-// NOTE: This is Sprint 0/1 scaffolding only. It wires the session and does a
-// placeholder role lookup against organization_members. Real role-based
-// routing/guarding should be filled in during Sprint 1 per docs/04_database_schema.md.
+// Looks up the app-level `users` row and active organization_members / roles
+// for a given Supabase Auth id. Returns an empty membership (not an error) for
+// a brand-new auth identity that hasn't created/joined an organization yet --
+// the onboarding screen is responsible for that step.
+async function loadMembership(authId: string): Promise<Membership> {
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('id')
+    .eq('auth_id', authId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (!userRow) return emptyMembership;
+
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('organization_id, roles(name), organizations(name)')
+    .eq('user_id', userRow.id)
+    .eq('status', 'active')
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  const roles = membership?.roles as unknown as { name: OrgRole } | null;
+  const organizations = membership?.organizations as unknown as { name: string } | null;
+
+  return {
+    userId: userRow.id as string,
+    role: roles?.name ?? null,
+    organizationId: (membership?.organization_id as string | undefined) ?? null,
+    organizationName: organizations?.name ?? null,
+  };
+}
+
+// NOTE: This wires real session + organization_members/roles lookups. Screen
+// building (Sprint 1 per docs/04_database_schema.md and Document 17) reads
+// role/organizationId from here to decide what to render.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<OrgRole>(null);
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [membership, setMembership] = useState<Membership>(emptyMembership);
+
+  const applyMembership = useCallback(async (authId: string | null) => {
+    if (!authId) {
+      setMembership(emptyMembership);
+      return;
+    }
+    const result = await loadMembership(authId);
+    setMembership(result);
+  }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
+    let active = true;
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      const currentSession = data.session;
+      const currentUserId = currentSession?.user?.id ?? null;
+      if (!active) return;
+      setSession(currentSession);
+      await applyMembership(currentUserId);
+      if (active) setLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
+      void applyMembership(newSession?.user?.id ?? null);
     });
 
     return () => {
+      active = false;
       listener.subscription.unsubscribe();
     };
+  }, [applyMembership]);
+
+  const refreshMembership = useCallback(async () => {
+    await applyMembership(session?.user?.id ?? null);
+  }, [applyMembership, session]);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
   }, []);
 
-  useEffect(() => {
-    const userId = session?.user?.id;
-
-    if (!userId) {
-      setRole(null);
-      setOrganizationId(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadMembership(uid: string) {
-      const { data, error } = await supabase
-        .from('organization_members')
-        .select('organization_id, roles ( name )')
-        .eq('user_id', uid)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      if (error || !data) {
-        setRole(null);
-        setOrganizationId(null);
-        return;
-      }
-
-      setOrganizationId(data.organization_id ?? null);
-      const roleName = (data as any)?.roles?.name ?? null;
-      setRole(roleName);
-    }
-
-    loadMembership(userId);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session]);
-
-  const value = useMemo(
+  const value = useMemo<AuthContextValue>(
     () => ({
       session,
       loading,
-      role,
-      organizationId,
-      signOut: async () => {
-        await supabase.auth.signOut();
-      },
+      userId: membership.userId,
+      role: membership.role,
+      organizationId: membership.organizationId,
+      organizationName: membership.organizationName,
+      refreshMembership,
+      signOut,
     }),
-    [session, loading, role, organizationId]
+    [session, loading, membership, refreshMembership, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { supabase } from '@/lib/supabase';
 
-// Sprint 0/1 scaffold: proves Supabase auth + organization_members role
-// lookup are wired correctly. Replace with the real Document 17 screens
-// (Welcome / Intake / Chef Dashboard / Admin Dashboard) in later sprints.
+// Sprint 1: real Supabase email/password auth wired to organization_members
+// role lookup via auth-context. Replace with the real Document 17 screens
+// (Welcome / Chef Dashboard / Admin Dashboard) in later sprints.
 export default function AccountScreen() {
-  const { session, loading, role, organizationId, signOut } = useAuth();
+  const { session, loading, role, organizationName, signOut } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function AccountScreen() {
       <ThemedText type="title">Account</ThemedText>
       <ThemedText>Signed in as {session.user.email}</ThemedText>
       <ThemedText>Role: {role ?? 'no organization membership yet'}</ThemedText>
-      <ThemedText>Organization: {organizationId ?? 'none'}</ThemedText>
+      <ThemedText>Organization: {organizationName ?? 'none'}</ThemedText>
       <ThemedText onPress={() => signOut()} style={styles.button}>
         Sign out
       </ThemedText>

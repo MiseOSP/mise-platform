@@ -1,62 +1,95 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useState } from 'react';
+import { ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+import { createOrganizationForCurrentUser } from '@/lib/organizations';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
+// Sprint 1: this is the Home tab's entry point. It branches on auth +
+// membership state rather than being a fixed marketing screen:
+//   1. no session            -> point the user at the Account tab to sign in
+//   2. session, no org yet   -> onboarding: create an organization (owner)
+//   3. session + org         -> placeholder dashboard (real dashboard per
+//                               Document 17 lands in a later slice)
+export default function HomeScreen() {
+  const { session, loading, role, organizationId, organizationName, refreshMembership } = useAuth();
+  const [orgName, setOrgName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (loading) {
     return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
+      <ThemedView style={styles.container}>
+        <ActivityIndicator />
+        <ThemedText>Loading...</ThemedText>
+      </ThemedView>
     );
   }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
 
-export default function HomeScreen() {
+  if (!session) {
+    return (
+      <ThemedView style={styles.container}>
+        <ThemedText type="title">Welcome to Mise</ThemedText>
+        <ThemedText>Sign in from the Account tab to get started.</ThemedText>
+      </ThemedView>
+    );
+  }
+
+  if (!organizationId) {
+    const handleCreate = async () => {
+      setError(null);
+      if (orgName.trim().length < 2) {
+        setError('Enter a name with at least 2 characters.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await createOrganizationForCurrentUser({
+          authId: session.user.id,
+          email: session.user.email ?? null,
+          organizationName: orgName,
+        });
+        await refreshMembership();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not create organization.');
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    return (
+      <ThemedView style={styles.container}>
+        <ThemedText type="title">Create your organization</ThemedText>
+        <ThemedText>
+          You&apos;re signed in, but not yet part of an organization. Create one to continue --
+          you&apos;ll be its owner.
+        </ThemedText>
+        <TextInput
+          style={styles.input}
+          placeholder="Organization name"
+          value={orgName}
+          onChangeText={setOrgName}
+          editable={!submitting}
+        />
+        <ThemedText
+          onPress={submitting ? undefined : handleCreate}
+          style={[styles.button, submitting && styles.buttonDisabled]}>
+          {submitting ? 'Creating...' : 'Create organization'}
+        </ThemedText>
+        {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+      </ThemedView>
+    );
+  }
+
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
+      <ThemedText type="title">{organizationName ?? 'Your organization'}</ThemedText>
+      <ThemedText>Signed in as {role ?? 'member'}.</ThemedText>
+      <ThemedText>
+        This is a placeholder dashboard. The real Home screen (per Document 17) will replace this
+        in the next build slice.
+      </ThemedText>
     </ThemedView>
   );
 }
@@ -64,35 +97,28 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    alignItems: 'stretch',
     justifyContent: 'center',
-    flexDirection: 'row',
+    gap: 12,
+    padding: 24,
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 12,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
+  button: {
     textAlign: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
   },
-  code: {
-    textTransform: 'uppercase',
+  buttonDisabled: {
+    opacity: 0.5,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  error: {
+    color: '#d33',
   },
 });
