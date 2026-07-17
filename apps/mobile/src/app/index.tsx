@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
 import { fetchEventsForRole, createEvent, type EventListItem } from '@/lib/events';
 import { assignChefByEmail, respondToAssignment } from '@/lib/assignments';
+import { fetchExperiences, type Experience } from '@/lib/experiences';
 import {
   getOrCreateEventConversation,
   fetchMessages,
@@ -229,6 +230,8 @@ export default function HomeScreen() {
   const [eventDate, setEventDate] = useState('');
   const [occasion, setOccasion] = useState('');
   const [guestCount, setGuestCount] = useState('');
+  const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [selectedExperienceId, setSelectedExperienceId] = useState<string | null>(null);
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [eventFormStatus, setEventFormStatus] = useState<string | null>(null);
 
@@ -246,6 +249,13 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadEvents();
   }, [loadEvents]);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    fetchExperiences(organizationId)
+      .then(setExperiences)
+      .catch(() => setExperiences([]));
+  }, [organizationId]);
 
   const handleAssignChef = useCallback(
     async (eventId: string, chefEmail: string, role: string): Promise<string | null> => {
@@ -289,12 +299,14 @@ export default function HomeScreen() {
         eventDate: eventDate.trim(),
         occasion: occasion.trim() || undefined,
         guestCount: guestCount.trim() ? Number(guestCount.trim()) : undefined,
+        experienceId: selectedExperienceId ?? undefined,
       });
       setEventFormStatus('Event created.');
       setClientEmail('');
       setEventDate('');
       setOccasion('');
       setGuestCount('');
+      setSelectedExperienceId(null);
       await loadEvents();
     } catch (e) {
       setEventFormStatus(e instanceof Error ? e.message : 'Could not create event.');
@@ -412,6 +424,32 @@ export default function HomeScreen() {
                 onChangeText={setGuestCount}
                 editable={!eventSubmitting}
               />
+              {experiences.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                  {experiences.map((exp) => {
+                    const selected = selectedExperienceId === exp.id;
+                    return (
+                      <ThemedText
+                        key={exp.id}
+                        onPress={() =>
+                          setSelectedExperienceId(selected ? null : exp.id)
+                        }
+                        style={{
+                          borderWidth: 1,
+                          borderColor: selected ? '#222' : '#ccc',
+                          backgroundColor: selected ? '#222' : 'transparent',
+                          color: selected ? '#fff' : '#333',
+                          borderRadius: 14,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          fontSize: 12,
+                        }}>
+                        {exp.name}
+                      </ThemedText>
+                    );
+                  })}
+                </View>
+              )}
               <ThemedText onPress={eventSubmitting ? undefined : handleCreateEvent} style={styles.button}>
                 {eventSubmitting ? 'Creating...' : 'Create event'}
               </ThemedText>

@@ -73,6 +73,7 @@ export type CreateEventInput = {
   address?: string;
   city?: string;
   state?: string;
+  experienceId?: string;
 };
 
 // Creates an event for an existing client (looked up via client_profiles ->
@@ -108,6 +109,7 @@ export async function createEvent(input: CreateEventInput): Promise<void> {
     start_time: input.startTime || null,
     guest_count: input.guestCount ?? null,
     occasion: input.occasion || null,
+    experience_id: input.experienceId || null,
     address: input.address || null,
     city: input.city || null,
     state: input.state || null,

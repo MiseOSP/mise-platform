@@ -19,8 +19,9 @@ import { useAuth } from '@/contexts/auth-context';
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
 export default function AppTabs() {
-  const { role } = useAuth();
+  const { role, organizationId } = useAuth();
   const canManageTeam = !!role && MANAGEMENT_ROLES.has(role);
+  const hasOrg = !!organizationId;
 
   return (
     <Tabs>
@@ -34,6 +35,12 @@ export default function AppTabs() {
           {canManageTeam && (
             <TabTrigger name="team" href="/team" asChild>
               <TabButton>Team</TabButton>
+            </TabTrigger>
+          )}
+
+          {hasOrg && (
+            <TabTrigger name="catalog" href="/catalog" asChild>
+              <TabButton>Catalog</TabButton>
             </TabTrigger>
           )}
 
