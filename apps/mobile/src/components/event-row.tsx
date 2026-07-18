@@ -18,6 +18,7 @@ import {
   type EventMenuItem,
 } from '@/lib/event-menu';
 import { fetchExperiences, fetchMenuCategories, fetchMenuItems } from '@/lib/experiences';
+import { fetchEventPayments, fetchEventPayouts, type EventPayment, type EventPayout } from '@/lib/payments';
 
 export function EventRow({
   item,
@@ -60,6 +61,11 @@ export function EventRow({
   const [newQuantity, setNewQuantity] = useState('1');
   const [newPriceAdjustment, setNewPriceAdjustment] = useState('0');
   const [savingMenuItem, setSavingMenuItem] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+  const [eventPayments, setEventPayments] = useState<EventPayment[]>([]);
+  const [eventPayouts, setEventPayouts] = useState<EventPayout[]>([]);
 
   const handleOpenChat = async () => {
     setChatOpen(true);
@@ -177,6 +183,25 @@ export function EventRow({
       setMenuError(e instanceof Error ? e.message : 'Could not add menu item.');
     } finally {
       setSavingMenuItem(false);
+    }
+  };
+
+  const handleOpenPayments = async () => {
+    setPaymentsOpen(true);
+    setPaymentsError(null);
+    setPaymentsLoading(true);
+    try {
+      const [paymentsResult, payoutsResult] = await Promise.all([
+        fetchEventPayments(item.id),
+        fetchEventPayouts(item.id),
+      ]);
+      setEventPayments(paymentsResult.data);
+      setEventPayouts(payoutsResult.data);
+      setPaymentsError(paymentsResult.error ?? payoutsResult.error);
+    } catch (e) {
+      setPaymentsError(e instanceof Error ? e.message : 'Could not load payment status.');
+    } finally {
+      setPaymentsLoading(false);
     }
   };
 
@@ -353,6 +378,34 @@ export function EventRow({
           ) : null}
           <ThemedText onPress={() => setMenuOpen(false)}>Close</ThemedText>
           {menuError ? <ThemedText style={styles.error}>{menuError}</ThemedText> : null}
+        </ThemedView>
+      )}
+      {!paymentsOpen ? (
+        <ThemedText onPress={handleOpenPayments} style={styles.button}>
+          Payments
+        </ThemedText>
+      ) : (
+        <ThemedView style={styles.form}>
+          <ThemedText type="smallBold">Payment status</ThemedText>
+          {paymentsLoading ? <ThemedText>Loading payment status...</ThemedText> : null}
+          {eventPayments.map((p) => (
+            <ThemedText key={p.id}>
+              {'Payment: $' + p.amount.toFixed(2) + ' (' + p.paymentType + ') - ' + p.status}
+            </ThemedText>
+          ))}
+          {!paymentsLoading && eventPayments.length === 0 ? (
+            <ThemedText>No payment records visible.</ThemedText>
+          ) : null}
+          {eventPayouts.map((po) => (
+            <ThemedText key={po.id}>
+              {'Payout: $' + po.amount.toFixed(2) + ' - ' + po.status}
+            </ThemedText>
+          ))}
+          {!paymentsLoading && eventPayouts.length === 0 ? (
+            <ThemedText>No payout records visible.</ThemedText>
+          ) : null}
+          <ThemedText onPress={() => setPaymentsOpen(false)}>Close</ThemedText>
+          {paymentsError ? <ThemedText style={styles.error}>{paymentsError}</ThemedText> : null}
         </ThemedView>
       )}
       {rowStatus ? <ThemedText style={styles.error}>{rowStatus}</ThemedText> : null}
