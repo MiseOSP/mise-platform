@@ -11,6 +11,7 @@ import { createEvent, fetchEventsForRole, type EventListItem } from '@/lib/event
 import { fetchExperiences, type Experience } from '@/lib/experiences';
 import { fetchTeamSize } from '@/lib/organizations';
 import { fetchAuditLogs, type AuditLogEntry } from '@/lib/audit-log';
+import { fetchPlatformSubscription, type PlatformSubscription } from '@/lib/billing';
 
 export function AdminDashboardScreen({
   organizationId,
@@ -45,6 +46,11 @@ export function AdminDashboardScreen({
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
   const [auditLogsError, setAuditLogsError] = useState<string | null>(null);
+
+  const [showBilling, setShowBilling] = useState(false);
+  const [billing, setBilling] = useState<PlatformSubscription | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
 
   const loadEvents = useCallback(async () => {
     if (!organizationId) return;
@@ -107,6 +113,20 @@ export function AdminDashboardScreen({
     setAuditLogsError(error);
     setAuditLogsLoading(false);
   }, [showAuditLog, organizationId]);
+
+  const handleToggleBilling = useCallback(async () => {
+    if (showBilling) {
+      setShowBilling(false);
+      return;
+    }
+    setShowBilling(true);
+    if (!organizationId) return;
+    setBillingLoading(true);
+    const { data, error } = await fetchPlatformSubscription(organizationId);
+    setBilling(data);
+    setBillingError(error);
+    setBillingLoading(false);
+  }, [showBilling, organizationId]);
 
   const handleRespondToAssignment = useCallback(async (): Promise<string | null> => null, []);
 
@@ -277,6 +297,26 @@ export function AdminDashboardScreen({
             </ThemedText>
           ))}
           <ThemedText onPress={() => setShowAuditLog(false)}>Close</ThemedText>
+        </ThemedView>
+      ) : null}
+
+      <ThemedText onPress={handleToggleBilling} style={styles.button}>
+        {showBilling ? 'Hide billing' : 'Billing'}
+      </ThemedText>
+      {showBilling ? (
+        <ThemedView style={styles.form}>
+          {billingLoading ? <ActivityIndicator /> : null}
+          {billingError ? <ThemedText style={styles.error}>{billingError}</ThemedText> : null}
+          {!billingLoading && !billingError && !billing ? (
+            <ThemedText>No active Mise subscription on file.</ThemedText>
+          ) : null}
+          {billing ? (
+            <ThemedText>
+              Plan: {billing.plan} - Status: {billing.status}
+              {billing.currentPeriodEnd ? ` - Renews ${billing.currentPeriodEnd}` : ''}
+            </ThemedText>
+          ) : null}
+          <ThemedText onPress={() => setShowBilling(false)}>Close</ThemedText>
         </ThemedView>
       ) : null}
     </ThemedView>
