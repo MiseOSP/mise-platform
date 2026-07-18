@@ -10,6 +10,7 @@ import { assignChefByEmail } from '@/lib/assignments';
 import { createEvent, fetchEventsForRole, type EventListItem } from '@/lib/events';
 import { fetchExperiences, type Experience } from '@/lib/experiences';
 import { fetchTeamSize } from '@/lib/organizations';
+import { fetchAuditLogs, type AuditLogEntry } from '@/lib/audit-log';
 
 export function AdminDashboardScreen({
   organizationId,
@@ -39,6 +40,11 @@ export function AdminDashboardScreen({
   const [eventFormStatus, setEventFormStatus] = useState<string | null>(null);
 
   const [teamSize, setTeamSize] = useState<number | null>(null);
+
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const [auditLogsError, setAuditLogsError] = useState<string | null>(null);
 
   const loadEvents = useCallback(async () => {
     if (!organizationId) return;
@@ -87,6 +93,20 @@ export function AdminDashboardScreen({
     },
     [organizationId, loadEvents],
   );
+
+  const handleToggleAuditLog = useCallback(async () => {
+    if (showAuditLog) {
+      setShowAuditLog(false);
+      return;
+    }
+    setShowAuditLog(true);
+    if (!organizationId) return;
+    setAuditLogsLoading(true);
+    const { data, error } = await fetchAuditLogs(organizationId);
+    setAuditLogs(data);
+    setAuditLogsError(error);
+    setAuditLogsLoading(false);
+  }, [showAuditLog, organizationId]);
 
   const handleRespondToAssignment = useCallback(async (): Promise<string | null> => null, []);
 
@@ -240,6 +260,25 @@ export function AdminDashboardScreen({
           ListEmptyComponent={<ThemedText>No events yet.</ThemedText>}
         />
       )}
+
+      <ThemedText onPress={handleToggleAuditLog} style={styles.button}>
+        {showAuditLog ? 'Hide activity log' : 'Activity log'}
+      </ThemedText>
+      {showAuditLog ? (
+        <ThemedView style={styles.form}>
+          {auditLogsLoading ? <ActivityIndicator /> : null}
+          {auditLogsError ? <ThemedText style={styles.error}>{auditLogsError}</ThemedText> : null}
+          {!auditLogsLoading && !auditLogsError && auditLogs.length === 0 ? (
+            <ThemedText>No activity recorded yet.</ThemedText>
+          ) : null}
+          {auditLogs.map((entry) => (
+            <ThemedText key={entry.id}>
+              {entry.createdAt} - {entry.action} on {entry.tableName}
+            </ThemedText>
+          ))}
+          <ThemedText onPress={() => setShowAuditLog(false)}>Close</ThemedText>
+        </ThemedView>
+      ) : null}
     </ThemedView>
   );
 }
