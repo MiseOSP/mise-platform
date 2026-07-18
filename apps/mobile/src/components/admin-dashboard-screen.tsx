@@ -31,6 +31,8 @@ export function AdminDashboardScreen({
   const [eventDate, setEventDate] = useState('');
   const [occasion, setOccasion] = useState('');
   const [guestCount, setGuestCount] = useState('');
+  const [chefFee, setChefFee] = useState('');
+  const [foodCostEstimate, setFoodCostEstimate] = useState('');
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [selectedExperienceId, setSelectedExperienceId] = useState<string | null>(null);
   const [eventSubmitting, setEventSubmitting] = useState(false);
@@ -104,6 +106,8 @@ export function AdminDashboardScreen({
         occasion: occasion.trim() || undefined,
         guestCount: guestCount.trim() ? Number(guestCount.trim()) : undefined,
         experienceId: selectedExperienceId ?? undefined,
+        chefFee: chefFee.trim() ? Number(chefFee.trim()) : undefined,
+        foodCostEstimate: foodCostEstimate.trim() ? Number(foodCostEstimate.trim()) : undefined,
       });
       setEventFormStatus('Event created.');
       setClientEmail('');
@@ -111,6 +115,8 @@ export function AdminDashboardScreen({
       setOccasion('');
       setGuestCount('');
       setSelectedExperienceId(null);
+      setChefFee('');
+      setFoodCostEstimate('');
       await loadEvents();
     } catch (e) {
       setEventFormStatus(e instanceof Error ? e.message : 'Could not create event.');
@@ -160,6 +166,22 @@ export function AdminDashboardScreen({
             keyboardType="number-pad"
             value={guestCount}
             onChangeText={setGuestCount}
+            editable={!eventSubmitting}
+          />
+                    <TextInput
+            style={styles.input}
+            placeholder="Chef fee $ (optional)"
+            keyboardType="decimal-pad"
+            value={chefFee}
+            onChangeText={setChefFee}
+            editable={!eventSubmitting}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Food cost estimate $ (optional)"
+            keyboardType="decimal-pad"
+            value={foodCostEstimate}
+            onChangeText={setFoodCostEstimate}
             editable={!eventSubmitting}
           />
           {experiences.length > 0 && (

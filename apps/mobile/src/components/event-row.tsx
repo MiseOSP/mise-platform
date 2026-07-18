@@ -123,6 +123,13 @@ export function EventRow({
       {isChef && item.assignment_status ? (
         <ThemedText>Your assignment: {item.assignment_status}</ThemedText>
       ) : null}
+      {isManagement && (item.chefFee != null || item.foodCostEstimate != null) ? (
+        <ThemedText style={styles.financials}>
+          {item.chefFee != null ? `Chef fee: $${item.chefFee.toFixed(2)}` : 'Chef fee: —'}
+          {'  ·  '}
+          {item.foodCostEstimate != null ? `Food cost est: $${item.foodCostEstimate.toFixed(2)}` : 'Food cost est: —'}
+        </ThemedText>
+      ) : null}
       {isChef && item.assignment_status === 'pending' && item.assignmentId ? (
         <ThemedView style={styles.form}>
           <ThemedText
@@ -221,6 +228,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ccc',
     gap: 2,
   },
+  financials: { color: '#666', fontSize: 12 },
   form: {
     gap: 8,
   },

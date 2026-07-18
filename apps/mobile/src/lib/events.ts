@@ -16,6 +16,8 @@ export type EventListItem = {
   address: string | null; // null for chefs until 15h before the event
   assignment_status?: string;
   assignmentId?: string;
+  chefFee?: number | null;
+  foodCostEstimate?: number | null;
 };
 
 export async function fetchEventsForRole(
@@ -54,13 +56,18 @@ export async function fetchEventsForRole(
   // shape for both, the database does the filtering).
   const { data, error } = await supabase
     .from('events')
-    .select('id, status, event_date, start_time, guest_count, occasion, city, state, address')
+    .select('id, status, event_date, start_time, guest_count, occasion, city, state, address, chef_fee, food_cost_estimate')
     .eq('organization_id', organizationId)
     .is('deleted_at', null)
     .order('event_date', { ascending: true });
 
   if (error) return { data: [], error: error.message };
-  return { data: (data ?? []) as EventListItem[], error: null };
+  const items = (data ?? []).map((e: any) => ({
+      ...e,
+      chefFee: e.chef_fee ?? null,
+      foodCostEstimate: e.food_cost_estimate ?? null,
+    }));
+    return { data: items as EventListItem[], error: null };
 }
 
 export type CreateEventInput = {
@@ -74,6 +81,8 @@ export type CreateEventInput = {
   city?: string;
   state?: string;
   experienceId?: string;
+  chefFee?: number;
+  foodCostEstimate?: number;
 };
 
 // Creates an event for an existing client (looked up via client_profiles ->
@@ -113,6 +122,8 @@ export async function createEvent(input: CreateEventInput): Promise<void> {
     address: input.address || null,
     city: input.city || null,
     state: input.state || null,
+    chef_fee: input.chefFee ?? null,
+    food_cost_estimate: input.foodCostEstimate ?? null,
   });
   if (insertError) throw insertError;
 }
