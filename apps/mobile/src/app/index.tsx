@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 import { AdminDashboardScreen } from '@/components/admin-dashboard-screen';
 import { AuthScreen } from '@/components/auth-screen';
 import { ChefPortalScreen } from '@/components/chef-portal-screen';
+import { ClientPortalScreen } from '@/components/client-portal-screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
@@ -82,6 +83,17 @@ export default function HomeScreen() {
   if (isManagement) {
     return (
       <AdminDashboardScreen
+        organizationId={organizationId}
+        organizationName={organizationName}
+        role={role}
+        authId={session.user.id}
+      />
+    );
+  }
+
+  if (role === 'client') {
+    return (
+      <ClientPortalScreen
         organizationId={organizationId}
         organizationName={organizationName}
         role={role}
