@@ -11,6 +11,13 @@ import {
   resolveAppUserId,
   type ChatMessage,
 } from '@/lib/messaging';
+import {
+  fetchEventMenuItems,
+  addEventMenuItem,
+  removeEventMenuItem,
+  type EventMenuItem,
+} from '@/lib/event-menu';
+import { fetchExperiences, fetchMenuCategories, fetchMenuItems } from '@/lib/experiences';
 
 export function EventRow({
   item,
@@ -44,6 +51,15 @@ export function EventRow({
   const [myAppUserId, setMyAppUserId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const [eventMenuItems, setEventMenuItems] = useState<EventMenuItem[]>([]);
+  const [catalogItems, setCatalogItems] = useState<{ id: string; label: string }[]>([]);
+  const [selectedMenuItemId, setSelectedMenuItemId] = useState<string | null>(null);
+  const [newQuantity, setNewQuantity] = useState('1');
+  const [newPriceAdjustment, setNewPriceAdjustment] = useState('0');
+  const [savingMenuItem, setSavingMenuItem] = useState(false);
 
   const handleOpenChat = async () => {
     setChatOpen(true);
@@ -106,6 +122,73 @@ export function EventRow({
     const err = await onRespond(item.assignmentId, accept);
     setResponding(false);
     if (err) setRowStatus(err);
+  };
+
+  const handleOpenMenu = async () => {
+    setMenuOpen(true);
+    setMenuError(null);
+    setMenuLoading(true);
+    try {
+      const result = await fetchEventMenuItems(item.id);
+      setEventMenuItems(result.data);
+      setMenuError(result.error);
+      if (isManagement) {
+        const exps = await fetchExperiences(organizationId);
+        const flat: { id: string; label: string }[] = [];
+        for (const exp of exps) {
+          if (!exp.active) continue;
+          const cats = await fetchMenuCategories(exp.id);
+          for (const cat of cats) {
+            const catalogEntries = await fetchMenuItems(cat.id);
+            for (const mi of catalogEntries) {
+              if (mi.active) flat.push({ id: mi.id, label: `${exp.name} - ${cat.name} - ${mi.name}` });
+            }
+          }
+        }
+        setCatalogItems(flat);
+      }
+    } catch (e) {
+      setMenuError(e instanceof Error ? e.message : 'Could not load menu.');
+    } finally {
+      setMenuLoading(false);
+    }
+  };
+
+  const handleAddMenuItem = async () => {
+    if (!selectedMenuItemId) {
+      setMenuError('Choose an item to add.');
+      return;
+    }
+    setSavingMenuItem(true);
+    try {
+      await addEventMenuItem({
+        eventId: item.id,
+        menuItemId: selectedMenuItemId,
+        quantity: Number(newQuantity) || 1,
+        priceAdjustment: Number(newPriceAdjustment) || 0,
+      });
+      setSelectedMenuItemId(null);
+      setNewQuantity('1');
+      setNewPriceAdjustment('0');
+      const result = await fetchEventMenuItems(item.id);
+      setEventMenuItems(result.data);
+      setMenuError(result.error);
+    } catch (e) {
+      setMenuError(e instanceof Error ? e.message : 'Could not add menu item.');
+    } finally {
+      setSavingMenuItem(false);
+    }
+  };
+
+  const handleRemoveMenuItem = async (id: string) => {
+    try {
+      await removeEventMenuItem(id);
+      const result = await fetchEventMenuItems(item.id);
+      setEventMenuItems(result.data);
+      setMenuError(result.error);
+    } catch (e) {
+      setMenuError(e instanceof Error ? e.message : 'Could not remove menu item.');
+    }
   };
 
   return (
@@ -214,6 +297,62 @@ export function EventRow({
           </ThemedText>
           <ThemedText onPress={() => setChatOpen(false)}>Close</ThemedText>
           {chatError ? <ThemedText style={styles.error}>{chatError}</ThemedText> : null}
+        </ThemedView>
+      )}
+      {!menuOpen ? (
+        <ThemedText onPress={handleOpenMenu} style={styles.button}>
+          Menu
+        </ThemedText>
+      ) : (
+        <ThemedView style={styles.form}>
+          <ThemedText type="smallBold">Event menu</ThemedText>
+          {menuLoading ? <ThemedText>Loading menu...</ThemedText> : null}
+          {eventMenuItems.map((mi) => (
+            <ThemedText key={mi.id}>
+              {mi.name} x{mi.quantity}
+              {mi.priceAdjustment ? ` (+$${mi.priceAdjustment.toFixed(2)})` : ''}
+              {isManagement ? (
+                <ThemedText onPress={() => handleRemoveMenuItem(mi.id)} style={styles.error}>
+                  {'  Remove'}
+                </ThemedText>
+              ) : null}
+            </ThemedText>
+          ))}
+          {!menuLoading && eventMenuItems.length === 0 ? <ThemedText>No menu items yet.</ThemedText> : null}
+          {isManagement ? (
+            <ThemedView style={styles.form}>
+              <ThemedText type="smallBold">Add item</ThemedText>
+              {catalogItems.map((ci) => (
+                <ThemedText key={ci.id} onPress={() => setSelectedMenuItemId(ci.id)} style={styles.button}>
+                  {selectedMenuItemId === ci.id ? `\u2713 ${ci.label}` : ci.label}
+                </ThemedText>
+              ))}
+              <TextInput
+                style={styles.input}
+                placeholder="Quantity"
+                value={newQuantity}
+                onChangeText={setNewQuantity}
+                keyboardType="numeric"
+                editable={!savingMenuItem}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Price adjustment (optional)"
+                value={newPriceAdjustment}
+                onChangeText={setNewPriceAdjustment}
+                keyboardType="numeric"
+                editable={!savingMenuItem}
+              />
+              <ThemedText
+                onPress={savingMenuItem ? undefined : handleAddMenuItem}
+                style={[styles.button, savingMenuItem && styles.buttonDisabled]}
+              >
+                {savingMenuItem ? 'Adding...' : 'Add to event'}
+              </ThemedText>
+            </ThemedView>
+          ) : null}
+          <ThemedText onPress={() => setMenuOpen(false)}>Close</ThemedText>
+          {menuError ? <ThemedText style={styles.error}>{menuError}</ThemedText> : null}
         </ThemedView>
       )}
       {rowStatus ? <ThemedText style={styles.error}>{rowStatus}</ThemedText> : null}
