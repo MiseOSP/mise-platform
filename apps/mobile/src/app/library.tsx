@@ -13,6 +13,7 @@ import {
   Resource,
   Ingredient,
   Recipe,
+  RecipeIngredient,
   fetchResources,
   createResource,
   archiveResource,
@@ -21,11 +22,148 @@ import {
   fetchRecipes,
   createRecipe,
   deleteRecipe,
+  fetchRecipeIngredients,
+  addRecipeIngredient,
+  removeRecipeIngredient,
 } from '@/lib/content';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
 type SectionKey = 'resources' | 'ingredients' | 'recipes';
+
+function RecipeIngredientsPanel({
+  recipeId,
+  ingredients,
+  isManagement,
+}: {
+  recipeId: string;
+  ingredients: Ingredient[];
+  isManagement: boolean;
+}) {
+  const [items, setItems] = useState<RecipeIngredient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedIngredientId, setSelectedIngredientId] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchRecipeIngredients(recipeId);
+      setItems(data);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load recipe ingredients');
+    } finally {
+      setLoading(false);
+    }
+  }, [recipeId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const ingredientName = (id: string) =>
+    ingredients.find((i) => i.id === id)?.name || 'Unknown ingredient';
+
+  const submitIngredient = async () => {
+    if (!selectedIngredientId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await addRecipeIngredient({
+        recipeId,
+        ingredientId: selectedIngredientId,
+        quantity: quantity.trim() ? Number(quantity.trim()) : undefined,
+        unit: unit.trim() || undefined,
+      });
+      setSelectedIngredientId(null);
+      setQuantity('');
+      setUnit('');
+      await load();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to add ingredient');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (recipeIngredientId: string) => {
+    setError(null);
+    try {
+      await removeRecipeIngredient(recipeIngredientId);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to remove ingredient');
+    }
+  };
+
+  return (
+    <View style={styles.expandedBox}>
+      {loading ? <ActivityIndicator /> : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {!loading && items.length === 0 ? (
+        <Text style={styles.muted}>No ingredients linked yet.</Text>
+      ) : null}
+      {items.map((ri) => (
+        <View key={ri.id} style={styles.ingredientRow}>
+          <Text style={styles.body}>
+            {ingredientName(ri.ingredientId)}
+            {ri.quantity != null ? ` — ${ri.quantity} ${ri.unit || ''}`.trim() : ''}
+          </Text>
+          {isManagement ? (
+            <Pressable onPress={() => remove(ri.id)}>
+              <Text style={styles.linkDanger}>Remove</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ))}
+      {isManagement && ingredients.length > 0 ? (
+        <View style={{ marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {ingredients.map((ing) => {
+              const selected = selectedIngredientId === ing.id;
+              return (
+                <Pressable
+                  key={ing.id}
+                  onPress={() => setSelectedIngredientId(selected ? null : ing.id)}
+                  style={[styles.chip, selected && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>{ing.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TextInput
+              style={styles.smallInput}
+              placeholder="Qty"
+              value={quantity}
+              onChangeText={setQuantity}
+              keyboardType="decimal-pad"
+            />
+            <TextInput
+              style={styles.smallInput}
+              placeholder="Unit"
+              value={unit}
+              onChangeText={setUnit}
+            />
+            <Pressable
+              style={[styles.submitButton, (saving || !selectedIngredientId) && styles.submitButtonDisabled, { flex: 1 }]}
+              onPress={submitIngredient}
+              disabled={saving || !selectedIngredientId}
+            >
+              <Text style={styles.submitButtonText}>{saving ? 'Adding...' : 'Add ingredient'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 
 export default function LibraryScreen() {
   const { role, organizationId } = useAuth();
@@ -39,6 +177,7 @@ export default function LibraryScreen() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!organizationId) return;
@@ -336,21 +475,34 @@ export default function LibraryScreen() {
               </View>
             ) : null
           }
-          renderItem={({ item }) => (
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>{item.name}</Text>
-                <Text style={styles.muted}>
-                  {item.yieldAmount ? `Yields ${item.yieldAmount} ${item.yieldUnit || ''}`.trim() : 'No yield set'}
-                </Text>
+          renderItem={({ item }) => {
+            const expanded = expandedRecipeId === item.id;
+            return (
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={styles.rowTitle}>{item.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Pressable onPress={() => setExpandedRecipeId(expanded ? null : item.id)}>
+                        <Text style={styles.link}>{expanded ? 'Hide ingredients' : 'Ingredients'}</Text>
+                      </Pressable>
+                      {isManagement ? (
+                        <Pressable onPress={() => removeRecipe(item.id)}>
+                          <Text style={styles.linkDanger}>Delete</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                  <Text style={styles.muted}>
+                    {item.yieldAmount ? `Yields ${item.yieldAmount} ${item.yieldUnit || ''}`.trim() : 'No yield set'}
+                  </Text>
+                  {expanded ? (
+                    <RecipeIngredientsPanel recipeId={item.id} ingredients={ingredients} isManagement={isManagement} />
+                  ) : null}
+                </View>
               </View>
-              {isManagement ? (
-                <Pressable onPress={() => removeRecipe(item.id)}>
-                  <Text style={styles.linkDanger}>Delete</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          )}
+            );
+          }}
           ListEmptyComponent={<Text style={styles.muted}>No recipes yet.</Text>}
         />
       )}
@@ -409,4 +561,32 @@ const styles = StyleSheet.create({
   muted: { color: '#777', marginTop: 2 },
   errorText: { color: '#b00020', marginBottom: 8 },
   linkDanger: { color: '#b00020', fontWeight: '600', marginLeft: 12 },
+  link: { color: '#2a6df5', fontWeight: '600', marginLeft: 12 },
+  expandedBox: { marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#ddd' },
+  ingredientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee',
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  chipActive: { borderColor: '#111', backgroundColor: '#111' },
+  chipText: { fontSize: 12, color: '#333' },
+  chipTextActive: { color: '#fff' },
+  smallInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 8,
+    marginRight: 8,
+    minWidth: 60,
+  },
 });
