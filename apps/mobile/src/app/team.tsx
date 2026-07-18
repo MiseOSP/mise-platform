@@ -5,7 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { supabase } from '@/lib/supabase';
-import { addClientByEmail } from '@/lib/clients';
+import { addClientByEmail, fetchClients, ClientListItem } from '@/lib/clients';
 
 type MemberRow = {
   id: string;
@@ -29,6 +29,8 @@ export default function TeamScreen() {
   const [clientEmail, setClientEmail] = useState('');
   const [clientStatus, setClientStatus] = useState<string | null>(null);
   const [clientSubmitting, setClientSubmitting] = useState(false);
+  const [clients, setClients] = useState<ClientListItem[]>([]);
+  const [loadingClients, setLoadingClients] = useState(true);
 
   const loadMembers = useCallback(async () => {
     if (!organizationId) return;
@@ -47,6 +49,18 @@ export default function TeamScreen() {
   useEffect(() => {
     void loadMembers();
   }, [loadMembers]);
+
+  const loadClients = useCallback(async () => {
+    if (!organizationId) return;
+    setLoadingClients(true);
+    const { data } = await fetchClients(organizationId);
+    setClients(data);
+    setLoadingClients(false);
+  }, [organizationId]);
+
+  useEffect(() => {
+    void loadClients();
+  }, [loadClients]);
 
   async function handleAddMember() {
     setStatus(null);
@@ -107,6 +121,7 @@ export default function TeamScreen() {
       await addClientByEmail({ organizationId, email: clientEmail });
       setClientStatus(`Added ${clientEmail.trim().toLowerCase()} as a client.`);
       setClientEmail('');
+      await loadClients();
     } catch (e) {
       setClientStatus(e instanceof Error ? e.message : 'Could not add client.');
     } finally {
@@ -163,6 +178,20 @@ export default function TeamScreen() {
       )}
 
       <ThemedText type="subtitle">Clients</ThemedText>
+      {loadingClients && <ActivityIndicator />}
+      <FlatList
+        data={clients}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <ThemedView style={styles.memberRow}>
+            <ThemedText>{item.email}</ThemedText>
+            <ThemedText>
+              {[item.city, item.state].filter(Boolean).join(', ') || 'No address on file'}
+            </ThemedText>
+          </ThemedView>
+        )}
+        ListEmptyComponent={!loadingClients ? <ThemedText>No clients yet.</ThemedText> : null}
+      />
       <ThemedView style={styles.form}>
         <TextInput
           style={styles.input}

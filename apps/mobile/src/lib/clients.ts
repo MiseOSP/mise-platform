@@ -37,3 +37,43 @@ export async function addClientByEmail({ organizationId, email, address, city, s
 
   if (insertError) throw insertError;
 }
+
+export type ClientListItem = {
+  id: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  lifetimeValue: number;
+  notes: string | null;
+};
+
+export async function fetchClients(
+  organizationId: string
+): Promise<{ data: ClientListItem[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('client_profiles')
+    .select('id, address, city, state, zip, notes, lifetime_value, users:user_id(email, phone)')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  if (error) return { data: [], error: error.message };
+
+  return {
+    data: (data ?? []).map((c: any) => ({
+      id: c.id,
+      email: c.users?.email ?? 'unknown',
+      phone: c.users?.phone ?? null,
+      address: c.address ?? null,
+      city: c.city ?? null,
+      state: c.state ?? null,
+      zip: c.zip ?? null,
+      lifetimeValue: Number(c.lifetime_value ?? 0),
+      notes: c.notes ?? null,
+    })),
+    error: null,
+  };
+}
