@@ -17,11 +17,13 @@ import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
+const STAFF_ROLES = new Set(['owner', 'admin', 'manager', 'chef']);
 
 export default function AppTabs() {
   const { role, organizationId } = useAuth();
   const canManageTeam = !!role && MANAGEMENT_ROLES.has(role);
   const hasOrg = !!organizationId;
+  const canAccessLibrary = hasOrg && !!role && STAFF_ROLES.has(role);
 
   return (
     <Tabs>
@@ -44,7 +46,7 @@ export default function AppTabs() {
             </TabTrigger>
           )}
 
-          {hasOrg && (
+          {canAccessLibrary && (
             <TabTrigger name="library" href="/library" asChild>
               <TabButton>Library</TabButton>
             </TabTrigger>
