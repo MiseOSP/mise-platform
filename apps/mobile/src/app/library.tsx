@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -206,6 +207,7 @@ export default function LibraryScreen() {
   const [newResourceTitle, setNewResourceTitle] = useState('');
   const [newResourceCategory, setNewResourceCategory] = useState('');
   const [newResourceContent, setNewResourceContent] = useState('');
+  const [newResourceFileUrl, setNewResourceFileUrl] = useState('');
   const [savingResource, setSavingResource] = useState(false);
 
   const [newIngredientName, setNewIngredientName] = useState('');
@@ -227,10 +229,12 @@ export default function LibraryScreen() {
         category: newResourceCategory,
         title: newResourceTitle,
         content: newResourceContent || undefined,
+        fileUrl: newResourceFileUrl.trim() || undefined,
       });
       setNewResourceTitle('');
       setNewResourceCategory('');
       setNewResourceContent('');
+      setNewResourceFileUrl('');
       await load();
     } catch (e: any) {
       setError(e?.message || 'Failed to add resource');
@@ -356,6 +360,13 @@ export default function LibraryScreen() {
                   onChangeText={setNewResourceContent}
                   multiline
                 />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Link URL (optional)"
+                  value={newResourceFileUrl}
+                  onChangeText={setNewResourceFileUrl}
+                  autoCapitalize="none"
+                />
                 <Pressable
                   style={[styles.submitButton, savingResource && styles.submitButtonDisabled]}
                   onPress={submitResource}
@@ -374,6 +385,11 @@ export default function LibraryScreen() {
                 <Text style={styles.rowTitle}>{item.title}</Text>
                 <Text style={styles.muted}>{item.category}</Text>
                 {item.content ? <Text style={styles.body}>{item.content}</Text> : null}
+                {item.fileUrl ? (
+                  <Pressable onPress={() => Linking.openURL(item.fileUrl as string)}>
+                    <Text style={[styles.link, { marginLeft: 0 }]}>Open link</Text>
+                  </Pressable>
+                ) : null}
               </View>
               {isManagement ? (
                 <Pressable onPress={() => removeResource(item.id)}>
