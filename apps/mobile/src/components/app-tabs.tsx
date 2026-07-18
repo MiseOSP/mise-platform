@@ -5,6 +5,7 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
+const STAFF_ROLES = new Set(['owner', 'admin', 'manager', 'chef']);
 
 export default function AppTabs() {
   const scheme = useColorScheme();
@@ -12,6 +13,7 @@ export default function AppTabs() {
   const { role, organizationId } = useAuth();
   const canManageTeam = !!role && MANAGEMENT_ROLES.has(role);
   const hasOrg = !!organizationId;
+  const canAccessLibrary = hasOrg && !!role && STAFF_ROLES.has(role);
 
   return (
     <NativeTabs
@@ -48,7 +50,7 @@ export default function AppTabs() {
         </NativeTabs.Trigger>
       )}
 
-      {hasOrg && (
+      {canAccessLibrary && (
         // TODO: swap in a dedicated "library" icon asset — reusing explore.png as a placeholder.
         <NativeTabs.Trigger name="library">
           <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
