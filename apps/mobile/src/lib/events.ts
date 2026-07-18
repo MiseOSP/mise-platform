@@ -56,7 +56,7 @@ export async function fetchEventsForRole(
   // shape for both, the database does the filtering).
   const { data, error } = await supabase
     .from('events')
-    .select('id, status, event_date, start_time, guest_count, occasion, city, state, address, chef_fee, food_cost_estimate')
+    .select('id, status, event_date, start_time, guest_count, occasion, city, state, address, service_fee, food_cost_estimate')
     .eq('organization_id', organizationId)
     .is('deleted_at', null)
     .order('event_date', { ascending: true });
@@ -64,7 +64,7 @@ export async function fetchEventsForRole(
   if (error) return { data: [], error: error.message };
   const items = (data ?? []).map((e: any) => ({
       ...e,
-      chefFee: e.chef_fee ?? null,
+      chefFee: e.service_fee ?? null,
       foodCostEstimate: e.food_cost_estimate ?? null,
     }));
     return { data: items as EventListItem[], error: null };
@@ -122,7 +122,7 @@ export async function createEvent(input: CreateEventInput): Promise<void> {
     address: input.address || null,
     city: input.city || null,
     state: input.state || null,
-    chef_fee: input.chefFee ?? null,
+    service_fee: input.chefFee ?? null,
     food_cost_estimate: input.foodCostEstimate ?? null,
   });
   if (insertError) throw insertError;
