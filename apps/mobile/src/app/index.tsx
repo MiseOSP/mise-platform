@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
+import { Brand } from '@/constants/theme';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
@@ -171,11 +172,8 @@ export default function HomeScreen() {
   );
 }
 
-const CREAM = '#FBF7F0';
-const DENIM = '#3B5A78';
-const ESPRESSO = '#3A2E28';
-const CLAY = '#B4674E';
-
+// Brand palette lives in shared design tokens (v2.0 Section 43); see
+// constants/theme.ts. This screen consumes Brand.* rather than redefining hex.
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -208,32 +206,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: CREAM,
+    backgroundColor: Brand.cream,
   },
   landingCard: {
     width: '100%',
     maxWidth: 480,
     gap: 12,
-    backgroundColor: CREAM,
+    backgroundColor: Brand.cream,
   },
   eyebrow: {
-    color: CLAY,
+    color: Brand.clay,
     fontWeight: '600',
     letterSpacing: 1,
     textTransform: 'uppercase',
     fontSize: 12,
   },
   landingTitle: {
-    color: ESPRESSO,
+    color: Brand.espresso,
   },
   landingBody: {
-    color: ESPRESSO,
+    color: Brand.espresso,
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 8,
   },
   primaryButton: {
-    backgroundColor: DENIM,
+    backgroundColor: Brand.denim,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -241,7 +239,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonText: {
-    color: CREAM,
+    color: Brand.cream,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -252,7 +250,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    color: DENIM,
+    color: Brand.denim,
     fontWeight: '600',
   },
   landingBackLink: {
@@ -261,7 +259,7 @@ const styles = StyleSheet.create({
     ...Platform.select({ web: { cursor: 'pointer' }, default: {} }),
   },
   landingLinkText: {
-    color: DENIM,
+    color: Brand.denim,
     fontWeight: '600',
   },
 });
