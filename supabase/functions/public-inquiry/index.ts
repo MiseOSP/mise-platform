@@ -1,5 +1,4 @@
-TESTLINE1
-TESTLINE2// public-inquiry Edge Function
+// public-inquiry Edge Function
 //
 // Accepts a public (unauthenticated) inquiry and creates the enduring
 // Relationship record plus its primary contact, server-side, using the
