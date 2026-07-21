@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { defaultOrganizationId, functionsBaseUrl, supabaseAnonKey } from './config';
 
 // Relationship domain layer (v2.0 Sections 9, 16, 19).
 // A Relationship is the enduring client record, created at first inquiry and
@@ -26,7 +27,7 @@ export type Relationship = {
 };
 
 export type NewInquiry = {
-  organizationId: string;
+  organizationId?: string;
   relationshipType?: RelationshipType;
   displayName: string;
   referralSource?: string | null;
@@ -86,44 +87,75 @@ export async function getRelationship(id: string): Promise<Result<Relationship>>
   return { data: mapRow(data), error: null };
 }
 
-// Create a Relationship from a public inquiry. Every inquiry starts a
-// relationship (v2.0 Section 9). This writes the relationship plus a primary
-// contact. It does NOT create a user account or any charge.
+// Create a Relationship from a PUBLIC inquiry (v2.0 Sections 9, 18).
+//
+// The public intake path is UNAUTHENTICATED, so it cannot write to the
+// relationships / relationship_contacts tables directly: RLS (migration 021)
+// grants INSERT only to org admins, and loosening that for the anon role would
+// expose the CRM to abuse (v2.0 Sections 51, 60, 65, 98). Instead we POST to
+// the 'public-inquiry' Edge Function, which validates input and inserts using
+// trusted server authority. The anon caller cannot read the created row back
+// (RLS), so we return a lightweight Relationship built from the input plus the
+// server-issued id; staff see the full record in the admin CRM.
 export async function createInquiryRelationship(
   input: NewInquiry,
 ): Promise<Result<Relationship>> {
-  const { data: rel, error: relErr } = await supabase
-    .from('relationships')
-    .insert({
-      organization_id: input.organizationId,
-      relationship_type: input.relationshipType ?? 'individual',
-      display_name: input.displayName,
-      referral_source: input.referralSource ?? null,
-      lead_status: 'inquiry',
-      client_status: 'prospect',
-      important_notes: input.notes ?? null,
-      last_interaction_at: new Date().toISOString(),
-    })
-    .select('*')
-    .single();
+  const organizationId = input.organizationId ?? defaultOrganizationId;
 
-  if (relErr) return { data: null, error: relErr.message };
-
-  const c = input.contact;
-  if (c && (c.firstName || c.lastName || c.email || c.phone)) {
-    const { error: contactErr } = await supabase
-      .from('relationship_contacts')
-      .insert({
-        relationship_id: rel.id,
-        is_primary: true,
-        first_name: c.firstName ?? null,
-        last_name: c.lastName ?? null,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-      });
-    // A contact failure should not orphan the relationship silently; surface it.
-    if (contactErr) return { data: mapRow(rel), error: contactErr.message };
+  if (!functionsBaseUrl || !supabaseAnonKey) {
+    return { data: null, error: 'App is not configured to submit inquiries yet.' };
+  }
+  if (!organizationId) {
+    return { data: null, error: 'Missing organization configuration for this inquiry.' };
   }
 
-  return { data: mapRow(rel), error: null };
+  let res: Response;
+  try {
+    res = await fetch(`${functionsBaseUrl}/public-inquiry`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        organizationId,
+        relationshipType: input.relationshipType,
+        displayName: input.displayName,
+        referralSource: input.referralSource ?? null,
+        contact: input.contact,
+        notes: input.notes ?? null,
+      }),
+    });
+  } catch {
+    return { data: null, error: 'Could not reach the server. Please try again.' };
+  }
+
+  let payload: { id?: string; error?: string } = {};
+  try {
+    payload = await res.json();
+  } catch {
+    // fall through to status-based handling
+  }
+
+  if (!res.ok || !payload.id) {
+    return { data: null, error: payload.error ?? 'Could not submit your inquiry.' };
+  }
+
+  const now = new Date().toISOString();
+  const relationship: Relationship = {
+    id: payload.id,
+    organizationId,
+    relationshipType: input.relationshipType ?? 'individual',
+    displayName: input.displayName,
+    leadStatus: 'inquiry',
+    clientStatus: 'prospect',
+    referralSource: input.referralSource ?? null,
+    lifetimeValueCents: 0,
+    currency: 'usd',
+    importantNotes: input.notes ?? null,
+    lastInteractionAt: now,
+    createdAt: now,
+  };
+  return { data: relationship, error: null };
 }
