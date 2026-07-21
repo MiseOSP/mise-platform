@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { createInquiryRelationship, type RelationshipType } from '@/lib/relationships';
+import { Brand } from '@/constants/theme';
 
 // Public intake screen (v2.0 Sections 28, 32, 33).
 //
@@ -99,13 +100,13 @@ export default function InquiryScreen() {
     // fields (guest count, date, occasion) become admin-qualification data;
     // for the MVP we capture them as a readable note on the relationship.
     const detailLines = [
-      service ? \`Interested in: \${SERVICES.find((s) => s.value === service)?.label}\` : null,
-      preferredDate.trim() ? \`Preferred date / cadence: \${preferredDate.trim()}\` : null,
-      guestCount.trim() ? \`Approx. guests: \${guestCount.trim()}\` : null,
-      serviceArea.trim() ? \`Service area: \${serviceArea.trim()}\` : null,
-      occasion.trim() ? \`Occasion: \${occasion.trim()}\` : null,
-      dietary.trim() ? \`Dietary notes: \${dietary.trim()}\` : null,
-      notes.trim() ? \`Notes: \${notes.trim()}\` : null,
+      service ? `Interested in: ${SERVICES.find((s) => s.value === service)?.label}` : null,
+      preferredDate.trim() ? `Preferred date / cadence: ${preferredDate.trim()}` : null,
+      guestCount.trim() ? `Approx. guests: ${guestCount.trim()}` : null,
+      serviceArea.trim() ? `Service area: ${serviceArea.trim()}` : null,
+      occasion.trim() ? `Occasion: ${occasion.trim()}` : null,
+      dietary.trim() ? `Dietary notes: ${dietary.trim()}` : null,
+      notes.trim() ? `Notes: ${notes.trim()}` : null,
     ].filter(Boolean);
 
     setSubmitting(true);
@@ -161,7 +162,7 @@ export default function InquiryScreen() {
           no account needed.
         </Text>
 
-        <Text style={styles.stepLabel} accessibilityLabel={\`Step \${step} of 2\`}>
+        <Text style={styles.stepLabel} accessibilityLabel={`Step ${step} of 2`}>
           Step {step} of 2
         </Text>
 
@@ -436,7 +437,7 @@ function PrimaryButton({
       style={[styles.button, disabled ? styles.buttonDisabled : null]}
     >
       {loading ? (
-        <ActivityIndicator color="#FBF7F0" />
+        <ActivityIndicator color={Brand.cream} />
       ) : (
         <Text style={styles.buttonText}>{label}</Text>
       )}
@@ -444,60 +445,53 @@ function PrimaryButton({
   );
 }
 
-// Palette approximates the v2.0 foundational tokens (Section 43): cream,
-// denim blue, espresso, clay. Production values should live in shared design
-// tokens; kept inline here until the token package lands.
-const CREAM = '#FBF7F0';
-const DENIM = '#3B5A78';
-const ESPRESSO = '#3A2E28';
-const CLAY = '#B4674E';
-const BORDER = '#E4DACB';
-
+// Brand palette now lives in shared design tokens (v2.0 Section 43); see
+// constants/theme.ts. Screens consume Brand.* rather than redefining hex.
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: CREAM },
-  container: { padding: 24, backgroundColor: CREAM, maxWidth: 640, width: '100%', alignSelf: 'center' },
+  flex: { flex: 1, backgroundColor: Brand.cream },
+  container: { padding: 24, backgroundColor: Brand.cream, maxWidth: 640, width: '100%', alignSelf: 'center' },
   centered: { flex: 1, justifyContent: 'center' },
-  eyebrow: { color: CLAY, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', fontSize: 12 },
-  title: { fontSize: 28, fontWeight: '700', color: ESPRESSO, marginTop: 6, marginBottom: 10 },
-  body: { fontSize: 16, lineHeight: 24, color: ESPRESSO },
-  stepLabel: { marginTop: 20, marginBottom: 4, color: DENIM, fontWeight: '600' },
+  eyebrow: { color: Brand.clay, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', fontSize: 12 },
+  title: { fontSize: 28, fontWeight: '700', color: Brand.espresso, marginTop: 6, marginBottom: 10 },
+  body: { fontSize: 16, lineHeight: 24, color: Brand.espresso },
+  stepLabel: { marginTop: 20, marginBottom: 4, color: Brand.denim, fontWeight: '600' },
   section: { marginTop: 8 },
   field: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '600', color: ESPRESSO, marginBottom: 6 },
+  label: { fontSize: 14, fontWeight: '600', color: Brand.espresso, marginBottom: 6 },
   input: {
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: '#FFFFFF',
+    borderColor: Brand.border,
+    backgroundColor: Brand.surface,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: ESPRESSO,
+    color: Brand.espresso,
     minHeight: 48,
   },
-  inputError: { borderColor: CLAY },
+  inputError: { borderColor: Brand.clay },
   multiline: { minHeight: 88, textAlignVertical: 'top' },
-  fieldError: { color: CLAY, marginTop: 4, fontSize: 13 },
-  helper: { color: '#6B5D50', fontSize: 13, marginBottom: 12 },
+  fieldError: { color: Brand.clay, marginTop: 4, fontSize: 13 },
+  helper: { color: Brand.textMuted, fontSize: 13, marginBottom: 12 },
   choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choiceColumn: { gap: 8 },
   choice: {
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: Brand.border,
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Brand.surface,
     minHeight: 48,
     justifyContent: 'center',
   },
   choiceBlock: { width: '100%' },
-  choiceSelected: { borderColor: DENIM, backgroundColor: '#EAF0F5' },
-  choiceText: { fontSize: 15, fontWeight: '600', color: ESPRESSO },
-  choiceTextSelected: { color: DENIM },
-  choiceHint: { fontSize: 13, color: '#6B5D50', marginTop: 2 },
+  choiceSelected: { borderColor: Brand.denim, backgroundColor: Brand.denimTint },
+  choiceText: { fontSize: 15, fontWeight: '600', color: Brand.espresso },
+  choiceTextSelected: { color: Brand.denim },
+  choiceHint: { fontSize: 13, color: Brand.textMuted, marginTop: 2 },
   button: {
-    backgroundColor: DENIM,
+    backgroundColor: Brand.denim,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -505,9 +499,9 @@ const styles = StyleSheet.create({
     minHeight: 52,
     justifyContent: 'center',
   },
-  buttonDisabled: { backgroundColor: '#A9B7C4' },
-  buttonText: { color: CREAM, fontSize: 16, fontWeight: '700' },
+  buttonDisabled: { backgroundColor: Brand.denimDisabled },
+  buttonText: { color: Brand.cream, fontSize: 16, fontWeight: '700' },
   backLink: { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
-  backLinkText: { color: DENIM, fontWeight: '600' },
-  error: { color: CLAY, marginTop: 12, fontSize: 14 },
+  backLinkText: { color: Brand.denim, fontWeight: '600' },
+  error: { color: Brand.clay, marginTop: 12, fontSize: 14 },
 });
