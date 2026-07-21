@@ -75,3 +75,36 @@ export async function fetchEventPayouts(eventId: string): Promise<{
     error: null,
   };
 }
+
+// Deposit payment initiation (v2.0 Sections 48, 66). Calls the trusted
+// create-deposit-intent Edge Function, which reads the SERVER-AUTHORITATIVE
+// deposit amount and creates a Stripe PaymentIntent. We only send the eventId;
+// the client never states an amount. Returns the PaymentIntent client secret
+// for the Stripe payment UI to confirm, plus the authoritative amount (in
+// cents) for display confirmation.
+export type DepositIntent = {
+  clientSecret: string;
+  amountCents: number;
+};
+
+export async function createDepositIntent(eventId: string): Promise<{
+  data: DepositIntent | null;
+  error: string | null;
+}> {
+  // supabase.functions.invoke automatically attaches the logged-in user's
+  // access token as the Authorization header, which the function requires to
+  // verify the caller owns the event.
+  const { data, error } = await supabase.functions.invoke('create-deposit-intent', {
+    body: { eventId },
+  });
+
+  if (error) return { data: null, error: error.message };
+  if (!data?.clientSecret || typeof data.amountCents !== 'number') {
+    return { data: null, error: 'The deposit could not be started. Please try again.' };
+  }
+
+  return {
+    data: { clientSecret: data.clientSecret, amountCents: data.amountCents },
+    error: null,
+  };
+}
