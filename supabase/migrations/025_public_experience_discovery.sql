@@ -46,6 +46,14 @@ create policy experiences_select_public on experiences
     and deleted_at is null
   );
 
+-- Remediation: some environments (and Supabase defaults) may have granted the
+-- public 'anon' role table-level write privileges on the experiences catalog.
+-- Public discovery must be strictly read-only (SELECT via the policy above);
+-- anon must never write to the catalog. Revoke it here so the schema is
+-- self-healing and secure by default on every environment. Deliberate, reviewed
+-- privilege change (v2.0 Section 96, change control).
+revoke insert, update, delete, truncate on public.experiences from anon;
+
 -- Guard: assert the anon role still has NO write privileges on experiences.
 -- Public discovery is read-only; publishing is a management action through the
 -- existing authenticated policies (v2.0 Sections 65, 96, 98).

@@ -19,8 +19,17 @@
 create index if not exists relationship_contacts_email_lower_idx
   on relationship_contacts (lower(email));
 
+-- Remediation: some environments (and Supabase defaults) may have granted the
+-- public 'anon' role table-level write privileges on the relationship tables.
+-- Per the trusted-write boundary above (and v2.0 Sections 60, 65, 98), the anon
+-- role must never hold direct write access to the CRM. Revoke it here so the
+-- schema is self-healing and secure by default on every environment. This is a
+-- deliberate, reviewed privilege change (v2.0 Section 96, change control).
+revoke insert, update, delete, truncate on public.relationships from anon;
+revoke insert, update, delete, truncate on public.relationship_contacts from anon;
+
 -- Guard: confirm the anon role has NOT been granted write access to the
--- relationship tables. This is a documentation/assertion step; it does not
+-- relationship tables. This is a documentation/assertion step that runs after the revoke above; it makes no further
 -- change privileges. If a future migration loosens this, that change must be
 -- deliberate and reviewed (v2.0 Section 96, change control).
 do $$

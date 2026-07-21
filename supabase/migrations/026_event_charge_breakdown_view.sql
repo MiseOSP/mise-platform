@@ -28,6 +28,13 @@ group by c.event_id, c.organization_id, c.category, c.deposit_eligible;
 comment on view event_charge_breakdown is
   'Per-category charge subtotals for an event. Read-only aggregate over event_charges; access governed by event_charges RLS. Used by the client estimate screen (v2.0 Section 35).';
 
+-- Remediation: this database's default privileges auto-grant SELECT on new
+-- objects to the public 'anon' role, so the freshly created view inherits an
+-- anon read grant. Financial charge breakdowns must never be world-readable
+-- (v2.0 Sections 35, 60, 65, 96, 98). Revoke it explicitly so the view matches
+-- its intended access model regardless of environment defaults.
+revoke select on public.event_charge_breakdown from anon;
+
 -- Guard: assert the anon role has NOT been granted read on this view. Public
 -- estimate data must never leak to unauthenticated callers; estimates are only
 -- ever shown to the authenticated client on the event or org staff.
