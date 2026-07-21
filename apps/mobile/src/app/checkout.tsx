@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import DepositCardForm from '@/components/deposit-card-form';
 import { createDepositIntent } from '@/lib/payments';
 import { formatMoney } from '@/lib/financials';
+import { isStripeReady } from '@/lib/stripe';
 import { Brand } from '@/constants/theme';
 
 // Deposit checkout / proposal acceptance (v2.0 Sections 35, 37, 48, 66).
@@ -20,27 +22,13 @@ import { Brand } from '@/constants/theme';
 // the SERVER-AUTHORITATIVE deposit amount and returns a Stripe PaymentIntent
 // client secret. The client NEVER states the amount (v2.0 Sections 51, 98).
 //
-// The actual card entry + confirmation is handled by the Stripe SDK. To keep
-// this build honest, the card UI is behind a capability check: if the Stripe
-// React Native SDK is not yet installed/registered, we surface a clear
-// "secure payment" placeholder rather than pretending a charge occurred. The
-// server-authoritative amount and client secret are fully wired; only the
-// card-field component is the remaining integration (see PR notes).
+// Card collection + PaymentIntent confirmation are delegated to DepositCardForm,
+// which has a native implementation (Stripe CardField + confirmPayment) and a
+// web stub. If Stripe cannot run on this device (web today, or before a native
+// rebuild links the SDK) we surface a clear 'secure payment' notice instead of
+// pretending a charge occurred -- the amount and client secret are still real.
 
-type Phase = 'loading' | 'error' | 'ready' | 'paying' | 'done';
-
-// Detects whether the native Stripe SDK has been linked. We avoid a static
-// import so the screen still renders (and the flow is testable) before the
-// dependency is added to the app.
-function stripeSdkAvailable(): boolean {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('@stripe/stripe-react-native');
-    return true;
-  } catch {
-    return false;
-  }
-}
+type Phase = 'loading' | 'error' | 'ready';
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -52,7 +40,7 @@ export default function CheckoutScreen() {
   const [amountCents, setAmountCents] = useState<number | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
-  const sdkReady = stripeSdkAvailable();
+  const sdkReady = isStripeReady();
 
   const start = useCallback(async () => {
     if (!eventId) {
@@ -77,30 +65,13 @@ export default function CheckoutScreen() {
     start();
   }, [start]);
 
-  const onConfirmPayment = useCallback(async () => {
-    if (!clientSecret) return;
-    setPhase('paying');
-    setError(null);
-    try {
-      // The Stripe SDK confirms the PaymentIntent with the clientSecret. The
-      // webhook (stripe-webhook) marks the payment paid; we then route to the
-      // confirmation screen. Wiring the SDK's confirmPayment/PaymentSheet here
-      // is the final integration step.
-      const stripe = require('@stripe/stripe-react-native');
-      if (!stripe?.confirmPayment) {
-        throw new Error('Payment is not available yet.');
-      }
-      const result = await stripe.confirmPayment(clientSecret, { paymentMethodType: 'Card' });
-      if (result?.error) {
-        throw new Error(result.error.message ?? 'Payment could not be completed.');
-      }
-      setPhase('done');
-      router.replace({ pathname: '/confirmation', params: { eventId: eventId! } });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Payment could not be completed.');
-      setPhase('ready');
+  const onPaid = useCallback(() => {
+    // The stripe-webhook marks the payment paid server-side; we route to the
+    // confirmation screen, which reads the server summary.
+    if (eventId) {
+      router.replace({ pathname: '/confirmation', params: { eventId } });
     }
-  }, [clientSecret, eventId, router]);
+  }, [eventId, router]);
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -127,7 +98,7 @@ export default function CheckoutScreen() {
         </View>
       )}
 
-      {(phase === 'ready' || phase === 'paying') && amountCents !== null && (
+      {phase === 'ready' && amountCents !== null && clientSecret && (
         <>
           <View style={styles.card}>
             <View style={styles.amountRow}>
@@ -140,17 +111,11 @@ export default function CheckoutScreen() {
             </Text>
           </View>
 
-          {error ? (
-            <Text style={styles.error} accessibilityLiveRegion="polite">
-              {error}
-            </Text>
-          ) : null}
-
           {sdkReady ? (
-            <PrimaryButton
-              label={phase === 'paying' ? 'Processing...' : `Pay ${formatMoney(amountCents)} deposit`}
-              onPress={onConfirmPayment}
-              disabled={phase === 'paying'}
+            <DepositCardForm
+              clientSecret={clientSecret}
+              amountLabel={formatMoney(amountCents)}
+              onPaid={onPaid}
             />
           ) : (
             <View style={styles.card}>
@@ -169,27 +134,6 @@ export default function CheckoutScreen() {
         </>
       )}
     </ScrollView>
-  );
-}
-
-function PrimaryButton({
-  label,
-  onPress,
-  disabled,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={disabled ? undefined : onPress}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: !!disabled }}
-      style={[styles.primaryButton, disabled && styles.primaryButtonDisabled]}
-    >
-      <Text style={styles.primaryButtonText}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -234,19 +178,6 @@ const styles = StyleSheet.create({
   amountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   amountLabel: { fontSize: 16, fontWeight: '700', color: Brand.espresso },
   amountValue: { fontSize: 22, fontWeight: '700', color: Brand.espresso, fontVariant: ['tabular-nums'] },
-  primaryButton: {
-    backgroundColor: Brand.denim,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 52,
-    marginTop: 16,
-    ...Platform.select({ web: { cursor: 'pointer' }, default: {} }),
-  },
-  primaryButtonDisabled: { opacity: 0.6 },
-  primaryButtonText: { color: Brand.cream, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   secondaryButton: {
     paddingVertical: 14,
     alignItems: 'center',
