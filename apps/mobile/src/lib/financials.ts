@@ -107,3 +107,36 @@ export async function fetchEventFinancialSummary(
     error: null,
   };
 }
+
+// Per-category charge subtotals for the client estimate/proposal screen
+// (v2.0 Section 35). Reads the event_charge_breakdown view (migration 026),
+// which aggregates event_charges by category. Access is governed by the same
+// RLS as event_charges (org staff, or the client on the event). This is for
+// DISPLAY grouping only; the binding deposit/total still comes from
+// fetchEventFinancialSummary, which the server computes authoritatively.
+export type ChargeCategoryBreakdown = {
+  category: ChargeCategory;
+  depositEligible: boolean;
+  subtotalCents: number;
+  lineCount: number;
+};
+
+export async function fetchEventChargeBreakdown(
+  eventId: string,
+): Promise<{ data: ChargeCategoryBreakdown[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('event_charge_breakdown')
+    .select('category, deposit_eligible, subtotal_cents, line_count')
+    .eq('event_id', eventId);
+
+  if (error) return { data: [], error: error.message };
+
+  const rows = (data ?? []).map((r: any) => ({
+    category: r.category as ChargeCategory,
+    depositEligible: Boolean(r.deposit_eligible),
+    subtotalCents: Number(r.subtotal_cents ?? 0),
+    lineCount: Number(r.line_count ?? 0),
+  }));
+
+  return { data: rows, error: null };
+}
