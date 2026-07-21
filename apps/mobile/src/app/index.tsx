@@ -67,6 +67,14 @@ function PublicLanding() {
           <ThemedText style={styles.browseButtonText}>Browse Signature Experiences</ThemedText>
         </Pressable>
 
+          <Pressable
+            onPress={() => router.push('/reserve')}
+            accessibilityRole="button"
+            style={styles.browseButton}
+          >
+            <ThemedText style={styles.browseButtonText}>Explore NCS Reserve</ThemedText>
+          </Pressable>
+
         <Pressable
           onPress={() => setShowAuth(true)}
           accessibilityRole="button"
