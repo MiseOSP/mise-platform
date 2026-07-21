@@ -112,7 +112,7 @@ export default function ConfirmationScreen() {
 
       <View style={styles.footerCta}>
         <PrimaryButton label="Back to home" onPress={() => router.replace('/')} />
-        <SecondaryButton label="Message our team" onPress={() => router.push('/inquiry')} />
+        <SecondaryButton label="Message our team" onPress={() => router.push({ pathname: '/messages', params: eventId ? { eventId } : {} })} />
       </View>
     </ScrollView>
   );

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -37,6 +38,7 @@ export function EventRow({
   organizationId: string;
   authId: string;
 }) {
+  const router = useRouter();
   const [assigning, setAssigning] = useState(false);
   const [chefEmail, setChefEmail] = useState('');
   const [assignRole, setAssignRole] = useState('lead_chef');
@@ -320,6 +322,7 @@ export function EventRow({
           >
             {sendingMessage ? 'Sending...' : 'Send'}
           </ThemedText>
+                <ThemedText onPress={() => router.push({ pathname: '/messages', params: { eventId: item.id } })} style={styles.link}>Open full conversation</ThemedText>
           <ThemedText onPress={() => setChatOpen(false)}>Close</ThemedText>
           {chatError ? <ThemedText style={styles.error}>{chatError}</ThemedText> : null}
         </ThemedView>
@@ -440,6 +443,11 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
+    link: {
+      color: '#3a5a8c',
+      fontWeight: '600',
+      paddingVertical: 6,
+    },
   error: {
     color: '#d33',
   },
