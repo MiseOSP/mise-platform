@@ -16,9 +16,10 @@ const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
 
 // Public landing shown to visitors with no session (v2.0 Sections 18, 28, 32).
 // Intake must be reachable WITHOUT an account, so the front door offers a
-// primary "Start an inquiry" path and a secondary "Sign in" for returning
-// clients and staff. Sign-in is revealed in place rather than gating the
-// whole app behind a login wall.
+// primary "Start an inquiry" path, a secondary "Browse experiences" path into
+// Signature Experience discovery, and a "Sign in" for returning clients and
+// staff. Sign-in is revealed in place rather than gating the whole app behind a
+// login wall.
 function PublicLanding() {
   const router = useRouter();
   const [showAuth, setShowAuth] = useState(false);
@@ -56,6 +57,14 @@ function PublicLanding() {
           style={styles.primaryButton}
         >
           <ThemedText style={styles.primaryButtonText}>Start an inquiry</ThemedText>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/discover')}
+          accessibilityRole="button"
+          style={styles.browseButton}
+        >
+          <ThemedText style={styles.browseButtonText}>Browse Signature Experiences</ThemedText>
         </Pressable>
 
         <Pressable
@@ -240,6 +249,21 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: Brand.cream,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  browseButton: {
+    borderWidth: 1,
+    borderColor: Brand.denim,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
+    backgroundColor: Brand.surface,
+  },
+  browseButtonText: {
+    color: Brand.denim,
     fontSize: 16,
     fontWeight: '700',
   },
