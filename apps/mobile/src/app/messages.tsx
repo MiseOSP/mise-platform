@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,6 +30,15 @@ import { Brand } from '@/constants/theme';
 // 010) enforces who can read/write, so this screen only wires the UI to the
 // already-built messaging lib. The signed-in user's app-level id is resolved
 // once and used as the sender for every message (Section 26).
+// Renders a compact local time like "3:04 PM" for a message's ISO createdAt.
+// Falls back to an empty string if the value is missing or unparseable.
+function formatTime(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 export default function MessagesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ eventId?: string }>();
@@ -42,6 +52,7 @@ export default function MessagesScreen() {
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const scrollRef = useRef<ScrollView | null>(null);
 
   const load = useCallback(async () => {
@@ -76,6 +87,12 @@ export default function MessagesScreen() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
   }, [load]);
 
   const onSend = useCallback(async () => {
@@ -133,6 +150,7 @@ export default function MessagesScreen() {
         style={styles.thread}
         contentContainerStyle={styles.threadContent}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.denim} />}
       >
         {messages.length === 0 ? (
           <Text style={styles.empty}>
@@ -150,6 +168,9 @@ export default function MessagesScreen() {
                   <Text style={mine ? styles.bubbleTextMine : styles.bubbleTextTheirs}>
                     {m.message}
                   </Text>
+                    <Text style={mine ? styles.timestampMine : styles.timestampTheirs}>
+                      {formatTime(m.createdAt)}
+                    </Text>
                 </View>
               </View>
             );
@@ -221,6 +242,8 @@ const styles = StyleSheet.create({
   bubbleTheirs: { backgroundColor: Brand.surface, borderWidth: 1, borderColor: Brand.border, borderBottomLeftRadius: 4 },
   bubbleTextMine: { color: Brand.cream, fontSize: 15, lineHeight: 21 },
   bubbleTextTheirs: { color: Brand.espresso, fontSize: 15, lineHeight: 21 },
+  timestampMine: { color: Brand.cream, fontSize: 11, marginTop: 4, opacity: 0.7, alignSelf: 'flex-end' },
+  timestampTheirs: { color: Brand.textMuted, fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
