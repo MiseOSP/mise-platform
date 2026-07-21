@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -10,6 +10,8 @@ import {
   fetchMessages,
   sendMessage,
   resolveAppUserId,
+  countUnreadForEvent,
+  markConversationRead,
   type ChatMessage,
 } from '@/lib/messaging';
 import {
@@ -52,6 +54,7 @@ export function EventRow({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [myAppUserId, setMyAppUserId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [draftText, setDraftText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -69,6 +72,26 @@ export function EventRow({
   const [eventPayments, setEventPayments] = useState<EventPayment[]>([]);
   const [eventPayouts, setEventPayouts] = useState<EventPayout[]>([]);
 
+  // On mount, fetch the unread message count for this event so the dashboard
+  // entry point can show a badge before the user ever opens the thread.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const uid = myAppUserId ?? (await resolveAppUserId(authId));
+        if (cancelled) return;
+        if (!myAppUserId) setMyAppUserId(uid);
+        const count = await countUnreadForEvent(item.id, uid);
+        if (!cancelled) setUnreadCount(count);
+      } catch {
+        // Badge is a non-critical hint; ignore failures.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authId, item.id, myAppUserId]);
+
   const handleOpenChat = async () => {
     setChatOpen(true);
     setChatError(null);
@@ -82,6 +105,9 @@ export function EventRow({
       setConversationId(convoId);
       const result = await fetchMessages(convoId);
       setMessages(result.data);
+        // Viewing the thread clears unread: mark read and reset the badge.
+        void markConversationRead(convoId, userId);
+        setUnreadCount(0);
       setChatError(result.error);
     } catch (e) {
       setChatError(e instanceof Error ? e.message : 'Could not load messages.');
@@ -297,7 +323,7 @@ export function EventRow({
       ) : null}
       {!chatOpen ? (
         <ThemedText onPress={handleOpenChat} style={styles.button}>
-          Messages
+            Messages{unreadCount > 0 ? ` (${unreadCount})` : ''}
         </ThemedText>
       ) : (
         <ThemedView style={styles.form}>

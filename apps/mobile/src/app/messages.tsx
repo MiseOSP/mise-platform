@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   fetchMessages,
   getOrCreateEventConversation,
+  markConversationRead,
   resolveAppUserId,
   sendMessage,
   type ChatMessage,
@@ -78,6 +79,8 @@ export default function MessagesScreen() {
       setAppUserId(uid);
       setConversationId(convId);
       setMessages(data);
+        // Opening the thread marks the other party's messages as read.
+        void markConversationRead(convId, uid);
       setPhase('ready');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'We could not load your messages.');

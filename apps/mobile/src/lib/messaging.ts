@@ -76,3 +76,44 @@ export async function sendMessage(senderId: string, conversationId: string, text
 
   if (error) throw error;
 }
+
+// Counts messages the given user has not yet read in an event's conversation.
+// "Unread" means the message was sent by someone else and has no read_at.
+// Returns 0 when there is no conversation for the event yet, or on error
+// (the badge is a non-critical hint, so we fail quiet rather than throw).
+export async function countUnreadForEvent(
+  eventId: string,
+  appUserId: string,
+): Promise<number> {
+  const { data: convo, error: convoErr } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (convoErr || !convo) return 0;
+
+  const { count, error } = await supabase
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', convo.id)
+    .is('read_at', null)
+    .neq('sender_id', appUserId);
+  if (error || count == null) return 0;
+  return count;
+}
+
+// Marks every message in a conversation that was sent by someone else as read.
+// Called when the user opens the thread. Requires an UPDATE RLS policy on
+// messages (see migration 028); without it this is a no-op under RLS.
+// Fails quiet: a failed mark-read should never block viewing the thread.
+export async function markConversationRead(
+  conversationId: string,
+  appUserId: string,
+): Promise<void> {
+  await supabase
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .is('read_at', null)
+    .neq('sender_id', appUserId);
+}
