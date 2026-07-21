@@ -26,6 +26,41 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+/**
+ * Brand design tokens (v2.0 Section 43).
+ *
+ * The Nashville Chef Service brand palette. These are the shared, canonical
+ * values for the client-facing surfaces (public landing + intake). Screens
+ * MUST import from here rather than redefining hex values inline, so the
+ * brand stays consistent and is changeable in exactly one place.
+ *
+ * Naming is semantic where a role is clear, with the source palette name in
+ * a comment for designer traceability.
+ */
+export const Brand = {
+  /** Warm paper background -- "cream" */
+  cream: '#FBF7F0',
+  /** Primary action / links -- "denim" */
+  denim: '#3B5A78',
+  /** Primary text on cream -- "espresso" */
+  espresso: '#3A2E28',
+  /** Accent / errors / eyebrow -- "clay" */
+  clay: '#B4674E',
+
+  /** Neutral surface inside cards / inputs */
+  surface: '#FFFFFF',
+  /** Hairline borders on cream */
+  border: '#E4DACB',
+  /** Muted body / helper text on cream */
+  textMuted: '#6B5D50',
+  /** Disabled primary button fill (desaturated denim) */
+  denimDisabled: '#A9B7C4',
+  /** Selected choice tint (pale denim wash) */
+  denimTint: '#EAF0F5',
+} as const;
+
+export type BrandColor = keyof typeof Brand;
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
