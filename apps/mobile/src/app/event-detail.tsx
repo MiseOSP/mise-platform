@@ -165,10 +165,24 @@ export default function EventDetailScreen() {
 
       <View style={[styles.card, styles.dietCard]}>
         <Text style={styles.cardTitle}>Dietary &amp; allergies</Text>
-        <Text style={styles.muted}>
-          Dietary restrictions and allergy information are not shown here yet. Confirm any dietary or
-          allergy requirements with the office before shopping and service.
-        </Text>
+        {event.dietaryStatement ? (
+          <Text style={styles.dietBody}>{event.dietaryStatement}</Text>
+        ) : null}
+        {event.dietaryPreferences ? (
+          <Text style={[styles.dietBody, { marginTop: event.dietaryStatement ? 8 : 0 }]}>
+            {event.dietaryPreferences}
+          </Text>
+        ) : null}
+        {!event.dietaryStatement && !event.dietaryPreferences ? (
+          <Text style={styles.muted}>
+            No dietary or allergy notes are recorded for this event. Always confirm requirements with the
+            office before shopping and service.
+          </Text>
+        ) : (
+          <Text style={styles.dietHint}>
+            Always reconfirm allergies directly with the office before service.
+          </Text>
+        )}
       </View>
 
       {pending && event.assignmentId ? (
@@ -220,6 +234,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   dietCard: { backgroundColor: '#fff4e5', borderWidth: 1, borderColor: '#f0c987' },
+  dietBody: { color: '#5c4a1a', fontWeight: '600' },
+  dietHint: { color: '#8a6100', marginTop: 8, fontSize: 13 },
   cardTitle: { fontWeight: '700', fontSize: 16, marginBottom: 8 },
   detailRow: {
     flexDirection: 'row',

@@ -18,6 +18,8 @@ export type EventListItem = {
   assignmentId?: string;
   chefFee?: number | null;
   foodCostEstimate?: number | null;
+  dietaryPreferences?: string | null;
+  dietaryStatement?: string | null;
 };
 
 export async function fetchEventsForRole(
@@ -28,7 +30,7 @@ export async function fetchEventsForRole(
     const { data, error } = await supabase
       .from('chef_visible_events')
       .select(
-        'id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
+        'id, status, event_date, start_time, guest_count, occasion, city, state, dietary_preferences, dietary_statement, visible_address, assignment_status, assignment_id'
       )
       .order('event_date', { ascending: true });
 
@@ -44,6 +46,8 @@ export async function fetchEventsForRole(
         city: e.city,
         state: e.state,
         address: e.visible_address,
+        dietaryPreferences: e.dietary_preferences,
+        dietaryStatement: e.dietary_statement,
         assignment_status: e.assignment_status,
         assignmentId: e.assignment_id,
       })),
@@ -139,7 +143,7 @@ export async function fetchChefVisibleEvent(
   const { data, error } = await supabase
     .from('chef_visible_events')
     .select(
-      'id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
+      'id, status, event_date, start_time, guest_count, occasion, city, state, dietary_preferences, dietary_statement, visible_address, assignment_status, assignment_id'
     )
     .eq('id', eventId)
     .maybeSingle();
@@ -158,6 +162,8 @@ export async function fetchChefVisibleEvent(
       city: data.city,
       state: data.state,
       address: data.visible_address,
+      dietaryPreferences: data.dietary_preferences,
+      dietaryStatement: data.dietary_statement,
       assignment_status: data.assignment_status,
       assignmentId: data.assignment_id,
     },
