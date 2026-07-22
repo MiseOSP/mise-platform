@@ -152,6 +152,10 @@ export default function TeamScreen() {
         Event financials
       </ThemedText>
 
+      <ThemedText type="link" onPress={() => router.push("/crm")}>
+        Relationships (CRM)
+      </ThemedText>
+
       <ThemedView style={styles.form}>
         <TextInput
           style={styles.input}
