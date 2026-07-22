@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   ActivityIndicator,
   FlatList,
@@ -53,6 +54,7 @@ function statusLabel(status?: string): string {
 
 export default function MyAssignmentsScreen() {
   const { role, organizationId } = useAuth();
+  const router = useRouter();
   const isChef = role === 'chef';
   const hasOrg = !!organizationId;
 
@@ -189,6 +191,13 @@ export default function MyAssignmentsScreen() {
                   {statusLabel(item.assignment_status)}
                 </Text>
 
+                <Pressable
+                  onPress={() => router.push({ pathname: '/event-detail', params: { eventId: item.id } })}
+                  style={styles.detailsLink}
+                >
+                  <Text style={styles.detailsLinkText}>View details</Text>
+                </Pressable>
+
                 {pending && item.assignmentId ? (
                   <View style={styles.actionRow}>
                     <Pressable
@@ -281,5 +290,7 @@ const styles = StyleSheet.create({
   },
   declineButtonText: { color: '#b00020', fontWeight: '700' },
   buttonDisabled: { opacity: 0.5 },
+  detailsLink: { marginTop: 10, alignSelf: 'flex-start' },
+  detailsLinkText: { color: '#2a6df5', fontWeight: '600' },
   errorText: { color: '#b00020', marginBottom: 8 },
 });

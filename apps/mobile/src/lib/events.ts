@@ -127,3 +127,40 @@ export async function createEvent(input: CreateEventInput): Promise<void> {
   });
   if (insertError) throw insertError;
 }
+
+// Fetches a single event from the chef-safe `chef_visible_events` view by id.
+// Returns the same masked shape as the chef branch of fetchEventsForRole
+// (address stays null until ~15h before the event; no internal notes). RLS on
+// the underlying view restricts this to the chef's own assigned events
+// (migration 005). Used by the chef event-detail screen (Phase 5, spec S91).
+export async function fetchChefVisibleEvent(
+  eventId: string
+): Promise<{ data: EventListItem | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('chef_visible_events')
+    .select(
+      'id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
+    )
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (error) return { data: null, error: error.message };
+  if (!data) return { data: null, error: null };
+
+  return {
+    data: {
+      id: data.id,
+      status: data.status,
+      event_date: data.event_date,
+      start_time: data.start_time,
+      guest_count: data.guest_count,
+      occasion: data.occasion,
+      city: data.city,
+      state: data.state,
+      address: data.visible_address,
+      assignment_status: data.assignment_status,
+      assignmentId: data.assignment_id,
+    },
+    error: null,
+  };
+}
