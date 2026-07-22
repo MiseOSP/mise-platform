@@ -160,6 +160,10 @@ export default function TeamScreen() {
         Experiences & menus
       </ThemedText>
 
+      <ThemedText type="link" onPress={() => router.push("/calendar")}>
+        Calendar
+      </ThemedText>
+
       <ThemedView style={styles.form}>
         <TextInput
           style={styles.input}
