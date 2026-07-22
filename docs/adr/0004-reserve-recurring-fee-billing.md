@@ -1,93 +1,67 @@
-# ADR 0004: Reserve Recurring-Fee Billing (Society Membership)
+# ADR 0004: Reserve "Society" recurring-fee membership billing
 
 - Status: Accepted, deferred implementation
-- Date: 2026-07-21
-- Decision owner: Product owner (founder)
-- Governing spec: Mise Product & Engineering Specification v2.0 (Sections 7, 14, 15, 20, 39, 51, 66, 72, 89, 105)
-- Supersedes (on implementation): ADR 0003's "per_event only" activation gate
-- Builds on: ADR 0003 (configurable billing_model), migration 033 (activation guard)
-
-## Status note
-
-This ADR RECORDS an approved business decision. Implementation is intentionally
-DEFERRED until after Phase 4 (Admin Operations) and Phase 5 (Chef Portal). It is
-written now so the pricing and policy decisions are captured and not lost. When
-implementation begins, this ADR is promoted and the migration 033 activation
-gate is relaxed to allow recurring_fee activation.
+- Date: 2026-07-22 (superseded earlier draft of same date)
+- Deciders: Business owner (Nashville Chef Service)
+- Related: ADR 0001 (Reserve no prepaid credits), ADR 0003 (configurable billing model,
+  per_event activatable first), migration 022 (billing_model), migration 033
+  (membership status transition + activation guard)
 
 ## Context
 
-The product owner has decided Reserve launches as a "Society" recurring
-membership billed as a flat fee on a cadence (the recurring_fee model from
-ADR 0003), not per_event. Section 105 listed this billing choice and the
-pause/cancel/refund policy as open decisions; this ADR resolves them.
+The Reserve product offers a recurring paid membership ("Society") that gives members
+preferred pricing and benefits on events. This ADR records the OWNER'S product and
+pricing decisions so they are not lost. Implementation (Stripe subscriptions, proration,
+refund logic) is DEFERRED until after Phases 4 and 5. This record supersedes an earlier
+draft that used a flat early-termination fee and a membership pause feature; both of those
+ideas have been DROPPED in favor of the simpler model below.
 
-## Decisions
+Stripe note: Stripe charges no platform/subscription fee to us for offering subscriptions;
+it is pay-per-transaction only (~2.9% + 30c per charge), and test mode is free.
 
-### 1. Plans and pricing (Society membership)
+## Decision
 
-- Society Annual (flagship, DEFAULT recommendation): USD 299-349 per year,
-  billed up front. Preferred because it matches how often clients entertain,
-  avoids another monthly subscription, and improves cash flow.
-- Society Monthly: USD 29-39 per month for clients preferring lower upfront
-  cost.
-- Exact final price points within these ranges to be set on the plan record at
-  configuration time (configurable, not hard-coded).
+Two plans, deliberately kept simple so customers understand them immediately.
 
-### 2. Minimum commitment
+### Society Annual (flagship, default recommendation)
+- Price: $299-349 / year (exact figure still to be finalized before build).
+- Billed once, up front, for the year.
+- Non-refundable after 30 days (unless a refund is required by law).
+- No cancellation penalties: the commitment is already paid in full, so there is
+  nothing to claw back after the refund window.
 
-- A 6-month minimum commitment applies to BOTH plans (monthly and annual).
-- Enforcement mechanism: EARLY TERMINATION FEE (not a hard cancel block).
-  Clients may cancel at any time, but cancellation before the 6-month term
-  completes triggers an early termination fee.
+### Society Monthly
+- Price: $29-39 / month (exact figure still to be finalized before build).
+- Six-month initial commitment.
+- After the six months, automatically converts to month-to-month.
+- Cancel anytime after the initial term with 30 days' notice.
 
-### 3. Cancellation and refund policy
+### Benefits-recovery clause (Annual 30-day window ONLY)
+Because members receive preferred pricing, the 30-day Annual refund is not unconditional.
+If an Annual member cancels within the 30-day window, Nashville Chef Service may reduce the
+refund by the value of membership discounts and benefits already received during that
+window. In practice the refund is: amount paid minus benefits already used, floored at zero.
+This protects against someone joining, booking a heavily discounted large event, and
+immediately requesting a full refund.
 
-- Cancel BEFORE the 6-month term:
-  - An early cancellation (termination) fee is applied.
-  - The remaining balance is then prorated (refund of the unused prorated
-    portion for annual; monthly stops future billing).
-- Cancel AFTER the 6-month term:
-  - No cancellation fee.
-  - Client receives a prorated refund of the unused portion (relevant for the
-    annual plan paid up front).
+This clause applies ONLY during the Annual 30-day refund window. It does NOT apply to
+Society Monthly (Monthly has no upfront refund to net against) and does NOT apply to
+Annual after 30 days (non-refundable, so nothing to net).
 
-### 4. Pause behavior
+### Dropped from earlier draft
+- Early-termination fee: REMOVED. There is no flat cancellation fee on either plan.
+- Membership pause (pause stops billing / extends term): REMOVED.
 
-- Pausing a membership STOPS billing temporarily (billing does not accrue while
-  paused). The term is effectively extended by the pause duration.
-- If a client CANCELS following a pause, the early termination fee still applies
-  if they are still within the 6-month minimum commitment (the pause does not
-  waive the minimum).
-
-### 5. Exact early-termination-fee amount
-
-- OPEN: the specific fee amount/formula (flat vs. remaining-months-based) is not
-  yet fixed. To be set configurably on the plan before public launch. Marked
-  clearly pending per Section 105; must not be silently chosen by an engineer.
-
-## Implementation outline (for when this is promoted)
-
-- New ADR-driven migration: add stripe subscription linkage to memberships
-  (stripe_subscription_id, stripe_customer_id, current_period_end,
-  minimum_commitment_end_date, early_termination_fee_cents), and relax the
-  migration 033 activation gate to permit recurring_fee.
-- Stripe test mode first (no Stripe platform subscription fee; Stripe is
-  pay-per-transaction only). Create Stripe Products/Prices for annual + monthly.
-- Payment method collected via Stripe hosted flow only; Mise never stores card
-  data (Section 66). No card numbers typed by any agent.
-- Stripe webhook (signature-verified, idempotent per Section 66) updates
-  membership status: active -> past_due on failed renewal -> canceled; handles
-  invoice.paid, invoice.payment_failed, customer.subscription.deleted.
-- Server-enforced (Section 51): activation, cancellation, fee calculation,
-  proration, and refund authority live in trusted server/DB functions, never
-  the client.
-- Audit (Section 55): membership activation, pause, cancel, and refund events
-  are audit-logged.
+## Open items (to finalize before implementation)
+- Exact Annual price within $299-349 and exact Monthly price within $29-39.
+- Copy/legal review of the "unless required by law" and benefits-recovery language.
+- Where benefits/discount value received is tracked so the Annual 30-day netting can be
+  computed (likely derived from event_charges discount lines tied to the member's events).
 
 ## Consequences
-
-- Until promoted, ADR 0003 remains in force: only per_event memberships can be
-  activated. Society plans may be created but not yet activated.
-- This is the single largest and most money-sensitive Reserve component and is
-  scheduled as its own focused, well-tested workstream after Phases 4 and 5.
+- Server-authoritative billing: subscription state, refund eligibility, and the Annual
+  30-day benefits-recovery netting must be enforced server-side (spec S51/S66), never
+  trusted from the client. Webhooks signature-verified and idempotent (spec S66).
+- billing_model 'recurring_fee' stays "coming soon" (ADR 0003) until this is built.
+- Simpler than the prior draft: no pause state machine and no early-termination fee math
+  to implement, reducing edge cases.
