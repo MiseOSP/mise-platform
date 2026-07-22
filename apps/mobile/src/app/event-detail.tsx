@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { EventListItem, fetchChefVisibleEvent } from '@/lib/events';
 import { EventMenuItem, fetchEventMenuItems } from '@/lib/event-menu';
 import { respondToAssignment } from '@/lib/assignments';
+import { CompletionStep, fetchCompletionSteps, setStepCompletion } from '@/lib/completion';
 
 // Chef event-detail screen (Phase 5, spec S91 "Event detail" + "Menu and
 // dietary visibility"). Everything shown here comes from chef-safe sources:
@@ -50,6 +51,8 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [responding, setResponding] = useState(false);
+  const [steps, setSteps] = useState<CompletionStep[]>([]);
+  const [savingStepId, setSavingStepId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!eventId) {
@@ -67,6 +70,11 @@ export default function EventDetailScreen() {
       setEvent(eventRes.data);
       if (menuRes.error && !eventRes.error) setError(menuRes.error);
       setMenu(menuRes.data);
+      try {
+        setSteps(await fetchCompletionSteps(eventId));
+      } catch {
+        setSteps([]);
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to load event');
     } finally {
@@ -89,6 +97,23 @@ export default function EventDetailScreen() {
       setError(e?.message || 'Failed to send your response');
     } finally {
       setResponding(false);
+    }
+  };
+
+  const toggleStep = async (stepId: string, done: boolean) => {
+    setSavingStepId(stepId);
+    setError(null);
+    try {
+      await setStepCompletion(stepId, done);
+      setSteps((prev) =>
+        prev.map((st) =>
+          st.id === stepId ? { ...st, completedAt: done ? new Date().toISOString() : null } : st
+        )
+      );
+    } catch (e: any) {
+      setError(e?.message || 'Could not update that step.');
+    } finally {
+      setSavingStepId(null);
     }
   };
 
@@ -204,6 +229,32 @@ export default function EventDetailScreen() {
         </View>
       ) : null}
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Completion checklist</Text>
+        {steps.length === 0 ? (
+          <Text style={styles.dietHint}>
+            No completion steps yet. The office will add required steps here before service.
+          </Text>
+        ) : (
+          steps.map((st) => {
+            const done = !!st.completedAt;
+            return (
+              <Pressable
+                key={st.id}
+                disabled={savingStepId === st.id}
+                onPress={() => toggleStep(st.id, !done)}
+                style={[styles.stepRow, done && styles.stepRowDone]}
+              >
+                <Text style={styles.stepBox}>{done ? '\u2713' : '\u2003'}</Text>
+                <Text style={[styles.stepLabel, done && styles.stepLabelDone]}>
+                  {savingStepId === st.id ? 'Saving...' : st.label}
+                </Text>
+              </Pressable>
+            );
+          })
+        )}
+      </View>
+
       <Pressable
         onPress={() => router.push({ pathname: '/messages', params: { eventId: event.id } })}
         style={styles.messageLink}
@@ -237,6 +288,11 @@ const styles = StyleSheet.create({
   dietBody: { color: '#5c4a1a', fontWeight: '600' },
   dietHint: { color: '#8a6100', marginTop: 8, fontSize: 13 },
   cardTitle: { fontWeight: '700', fontSize: 16, marginBottom: 8 },
+  stepRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#eee' },
+  stepRowDone: { opacity: 0.6 },
+  stepBox: { width: 22, fontSize: 16, color: '#2f6f4f' },
+  stepLabel: { flex: 1, fontSize: 15, color: '#222' },
+  stepLabelDone: { textDecorationLine: 'line-through', color: '#777' },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
