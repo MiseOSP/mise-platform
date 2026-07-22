@@ -250,3 +250,333 @@ export async function updateReserveInterestStatus(
   if (error) return { data: null, error: error.message };
   return { data: mapReserveInterest(data), error: null };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3 / ADR 0003 — plan management, proposals, activation, change requests
+// ---------------------------------------------------------------------------
+// Billing is configurable per plan (membership_plans.billing_model) but only
+// 'per_event' is activatable in this release; 'recurring_fee' and 'hybrid' are
+// selectable-but-"coming soon". Activation and status transitions are enforced
+// server-side by migration 033 (Section 51); these functions surface, not
+// replace, that authority.
+
+export type BillingModel = 'per_event' | 'recurring_fee' | 'hybrid';
+
+// The only billing model that can be ACTIVATED in the Nashville MVP (ADR 0003).
+export const ACTIVATABLE_BILLING_MODELS: BillingModel[] = ['per_event'];
+
+export function isActivatableBillingModel(model: BillingModel): boolean {
+  return ACTIVATABLE_BILLING_MODELS.includes(model);
+}
+
+export type ChangeRequestType =
+  | 'pause'
+  | 'resume'
+  | 'reschedule'
+  | 'cancel'
+  | 'concierge'
+  | 'other';
+export type ChangeRequestStatus = 'open' | 'in_review' | 'resolved' | 'declined';
+
+export type MembershipChangeRequest = {
+  id: string;
+  organizationId: string;
+  membershipId: string;
+  requestType: ChangeRequestType;
+  message: string | null;
+  status: ChangeRequestStatus;
+  requestedBy: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  adminNote: string | null;
+  createdAt: string;
+};
+
+function mapChangeRequest(row: Record<string, unknown>): MembershipChangeRequest {
+  return {
+    id: row.id as string,
+    organizationId: row.organization_id as string,
+    membershipId: row.membership_id as string,
+    requestType: row.request_type as ChangeRequestType,
+    message: (row.message as string) ?? null,
+    status: row.status as ChangeRequestStatus,
+    requestedBy: (row.requested_by as string) ?? null,
+    resolvedBy: (row.resolved_by as string) ?? null,
+    resolvedAt: (row.resolved_at as string) ?? null,
+    adminNote: (row.admin_note as string) ?? null,
+    createdAt: row.created_at as string,
+  };
+}
+
+// Read the billing_model of a plan (not exposed by the trimmed MembershipPlan).
+export async function getPlanBillingModel(
+  planId: string,
+): Promise<Result<BillingModel>> {
+  const { data, error } = await supabase
+    .from('membership_plans')
+    .select('billing_model')
+    .eq('id', planId)
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: (data?.billing_model as BillingModel) ?? 'per_event', error: null };
+}
+
+// --- Admin: plan management (Section 89) ---
+export type PlanInput = {
+  name: string;
+  memberType: MemberType;
+  billingModel?: BillingModel;
+  recurringFeeInterval?: RecurringFeeInterval | null;
+  basePriceCents?: number | null;
+  includedBenefits?: string[];
+  cancellationPolicy?: string | null;
+  reschedulingPolicy?: string | null;
+  active?: boolean;
+  organizationId?: string;
+};
+
+export async function createPlan(input: PlanInput): Promise<Result<MembershipPlan>> {
+  const { data, error } = await supabase
+    .from('membership_plans')
+    .insert({
+      organization_id: input.organizationId ?? defaultOrganizationId,
+      name: input.name,
+      member_type: input.memberType,
+      billing_model: input.billingModel ?? 'per_event',
+      recurring_fee_interval: input.recurringFeeInterval ?? null,
+      base_price: input.basePriceCents ?? 0,
+      included_benefits: input.includedBenefits ?? [],
+      cancellation_policy: input.cancellationPolicy ?? null,
+      rescheduling_policy: input.reschedulingPolicy ?? null,
+      active: input.active ?? true,
+    })
+    .select('*')
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: mapPlan(data), error: null };
+}
+
+export async function updatePlan(
+  id: string,
+  patch: Partial<PlanInput>,
+): Promise<Result<MembershipPlan>> {
+  const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.memberType !== undefined) row.member_type = patch.memberType;
+  if (patch.billingModel !== undefined) row.billing_model = patch.billingModel;
+  if (patch.recurringFeeInterval !== undefined)
+    row.recurring_fee_interval = patch.recurringFeeInterval;
+  if (patch.basePriceCents !== undefined) row.base_price = patch.basePriceCents;
+  if (patch.includedBenefits !== undefined) row.included_benefits = patch.includedBenefits;
+  if (patch.cancellationPolicy !== undefined)
+    row.cancellation_policy = patch.cancellationPolicy;
+  if (patch.reschedulingPolicy !== undefined)
+    row.rescheduling_policy = patch.reschedulingPolicy;
+  if (patch.active !== undefined) row.active = patch.active;
+
+  const { data, error } = await supabase
+    .from('membership_plans')
+    .update(row)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: mapPlan(data), error: null };
+}
+
+// List ALL plans for admin (including inactive), newest first.
+export async function listAllPlans(
+  organizationId: string = defaultOrganizationId,
+): Promise<Result<MembershipPlan[]>> {
+  const { data, error } = await supabase
+    .from('membership_plans')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  if (error) return { data: null, error: error.message };
+  return { data: (data ?? []).map(mapPlan), error: null };
+}
+
+// --- Admin: memberships (Section 89) ---
+export async function listMemberships(
+  organizationId: string = defaultOrganizationId,
+): Promise<Result<Membership[]>> {
+  const { data, error } = await supabase
+    .from('memberships')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  if (error) return { data: null, error: error.message };
+  return { data: (data ?? []).map(mapMembership), error: null };
+}
+
+// Create a PROPOSED membership for a relationship's client profile. The row
+// starts in 'proposed'; activation is a separate, server-guarded step.
+export type MembershipProposalInput = {
+  clientProfileId: string;
+  relationshipId: string;
+  planId: string;
+  preferredDayOfWeek?: number | null;
+  preferredServiceWindow?: string | null;
+  organizationId?: string;
+};
+
+export async function createMembershipProposal(
+  input: MembershipProposalInput,
+): Promise<Result<Membership>> {
+  const { data, error } = await supabase
+    .from('memberships')
+    .insert({
+      organization_id: input.organizationId ?? defaultOrganizationId,
+      client_id: input.clientProfileId,
+      relationship_id: input.relationshipId,
+      plan_id: input.planId,
+      status: 'proposed',
+      preferred_day_of_week: input.preferredDayOfWeek ?? null,
+      preferred_service_window: input.preferredServiceWindow ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: mapMembership(data), error: null };
+}
+
+// Transition a membership's status. The DB (migration 033) validates the
+// transition graph and the per_event activation gate; illegal moves error.
+export async function setMembershipStatus(
+  id: string,
+  status: MembershipStatus,
+  extra?: { cancellationReason?: string | null; resumesAt?: string | null },
+): Promise<Result<Membership>> {
+  const row: Record<string, unknown> = { status };
+  if (extra?.cancellationReason !== undefined)
+    row.cancellation_reason = extra.cancellationReason;
+  if (extra?.resumesAt !== undefined) row.resumes_at = extra.resumesAt;
+
+  const { data, error } = await supabase
+    .from('memberships')
+    .update(row)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: mapMembership(data), error: null };
+}
+
+// Convenience wrappers for the common transitions.
+export const activateMembership = (id: string) => setMembershipStatus(id, 'active');
+export const pauseMembership = (id: string, resumesAt?: string | null) =>
+  setMembershipStatus(id, 'paused', { resumesAt: resumesAt ?? null });
+export const cancelMembership = (id: string, reason?: string | null) =>
+  setMembershipStatus(id, 'canceled', { cancellationReason: reason ?? null });
+
+// --- Recurring schedule read (Section 39 upcoming schedule) ---
+export type RecurringSchedule = {
+  id: string;
+  membershipId: string;
+  patternType: string;
+  dayOfWeek: number | null;
+  intervalWeeks: number;
+  nextOccurrence: string | null;
+  active: boolean;
+};
+
+function mapSchedule(row: Record<string, unknown>): RecurringSchedule {
+  return {
+    id: row.id as string,
+    membershipId: row.membership_id as string,
+    patternType: row.pattern_type as string,
+    dayOfWeek: row.day_of_week == null ? null : Number(row.day_of_week),
+    intervalWeeks: row.interval_weeks == null ? 1 : Number(row.interval_weeks),
+    nextOccurrence: (row.next_occurrence as string) ?? null,
+    active: Boolean(row.active),
+  };
+}
+
+export async function getScheduleForMembership(
+  membershipId: string,
+): Promise<Result<RecurringSchedule | null>> {
+  const { data, error } = await supabase
+    .from('recurring_schedules')
+    .select('*')
+    .eq('membership_id', membershipId)
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return { data: null, error: error.message };
+  return { data: data ? mapSchedule(data) : null, error: null };
+}
+
+// --- Membership change requests (Section 39: route to admin) ---
+export async function createChangeRequest(input: {
+  membershipId: string;
+  requestType: ChangeRequestType;
+  message?: string | null;
+  organizationId?: string;
+}): Promise<Result<MembershipChangeRequest>> {
+  const { data, error } = await supabase
+    .from('membership_change_requests')
+    .insert({
+      organization_id: input.organizationId ?? defaultOrganizationId,
+      membership_id: input.membershipId,
+      request_type: input.requestType,
+      message: input.message ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: mapChangeRequest(data), error: null };
+}
+
+export async function listChangeRequestsForMembership(
+  membershipId: string,
+): Promise<Result<MembershipChangeRequest[]>> {
+  const { data, error } = await supabase
+    .from('membership_change_requests')
+    .select('*')
+    .eq('membership_id', membershipId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  if (error) return { data: null, error: error.message };
+  return { data: (data ?? []).map(mapChangeRequest), error: null };
+}
+
+// Admin queue: all open/in-review requests for an organization.
+export async function listOpenChangeRequests(
+  organizationId: string = defaultOrganizationId,
+): Promise<Result<MembershipChangeRequest[]>> {
+  const { data, error } = await supabase
+    .from('membership_change_requests')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .in('status', ['open', 'in_review'])
+    .order('created_at', { ascending: true });
+  if (error) return { data: null, error: error.message };
+  return { data: (data ?? []).map(mapChangeRequest), error: null };
+}
+
+// Admin resolves or declines a change request (does not itself mutate the
+// membership; the admin applies any status change separately and deliberately).
+export async function resolveChangeRequest(
+  id: string,
+  status: Extract<ChangeRequestStatus, 'resolved' | 'declined'>,
+  adminNote?: string | null,
+): Promise<Result<MembershipChangeRequest>> {
+  const { data, error } = await supabase
+    .from('membership_change_requests')
+    .update({
+      status,
+      admin_note: adminNote ?? null,
+      resolved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: mapChangeRequest(data), error: null };
+}
