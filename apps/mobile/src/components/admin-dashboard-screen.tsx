@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { DashboardSummary } from '@/components/dashboard-summary';
 import { EventRow } from '@/components/event-row';
@@ -24,6 +25,7 @@ export function AdminDashboardScreen({
   role: OrgRole;
   authId: string;
 }) {
+  const router = useRouter();
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
@@ -171,6 +173,13 @@ export function AdminDashboardScreen({
       <ThemedText>Signed in as {role ?? 'member'}.</ThemedText>
 
       <DashboardSummary isManagement isChef={false} events={events} teamSize={teamSize} />
+      <ThemedText
+        accessibilityRole="button"
+        onPress={() => router.push('/reserve-queue')}
+        style={styles.button}
+      >
+        NCS Reserve queue
+      </ThemedText>
 
       <ThemedText onPress={() => setShowNewEvent((v) => !v)} style={styles.button}>
         {showNewEvent ? 'Cancel' : '+ New event'}

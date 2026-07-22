@@ -195,3 +195,58 @@ export function nextOccurrenceOnOrAfter(from: string, weekday: number): string {
   next.setUTCDate(base.getUTCDate() + delta);
   return next.toISOString().slice(0, 10);
 }
+
+// --- Staff-facing reserve interest management (Section 10 / Phase 3) ---
+// These power the internal NCS Reserve queue: staff (admin/chef) review
+// incoming interest, add notes during a consult, and advance the status
+// through the pipeline. RLS (migration 022 reserve_interests_manage_staff)
+// restricts these writes to org admins on the server; the app only surfaces
+// them to staff roles.
+
+// List reserve interests for an organization, newest first.
+export async function listReserveInterests(
+  organizationId: string,
+): Promise<Result<ReserveInterest[]>> {
+  const { data, error } = await supabase
+    .from('reserve_interests')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  if (error) return { data: null, error: error.message };
+  return { data: (data ?? []).map(mapReserveInterest), error: null };
+}
+
+// Update the free-text notes on a reserve interest (e.g. consult summary).
+export async function updateReserveInterestNotes(
+  id: string,
+  notes: string | null,
+): Promise<Result<ReserveInterest>> {
+  const { data, error } = await supabase
+    .from('reserve_interests')
+    .update({ notes, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: mapReserveInterest(data), error: null };
+}
+
+// Advance a reserve interest through the pipeline
+// (new -> contacted -> consult_scheduled -> converted / closed).
+export async function updateReserveInterestStatus(
+  id: string,
+  status: ReserveInterestStatus,
+): Promise<Result<ReserveInterest>> {
+  const { data, error } = await supabase
+    .from('reserve_interests')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: mapReserveInterest(data), error: null };
+}
