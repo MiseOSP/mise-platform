@@ -148,6 +148,10 @@ export default function TeamScreen() {
         Chef assignments
       </ThemedText>
 
+      <ThemedText type="link" onPress={() => router.push("/financials-admin")}>
+        Event financials
+      </ThemedText>
+
       <ThemedView style={styles.form}>
         <TextInput
           style={styles.input}
