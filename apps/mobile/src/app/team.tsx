@@ -144,6 +144,10 @@ export default function TeamScreen() {
         + View event queue
       </ThemedText>
 
+      <ThemedText type="link" onPress={() => router.push("/chef-assignments")}>
+        Chef assignments
+      </ThemedText>
+
       <ThemedView style={styles.form}>
         <TextInput
           style={styles.input}
