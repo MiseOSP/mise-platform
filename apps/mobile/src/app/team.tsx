@@ -140,6 +140,9 @@ export default function TeamScreen() {
       <ThemedText type="link" onPress={() => router.push("/memberships-admin")}>
         + Manage Reserve memberships
       </ThemedText>
+      <ThemedText type="link" onPress={() => router.push("/event-queue")}>
+        + View event queue
+      </ThemedText>
 
       <ThemedView style={styles.form}>
         <TextInput
