@@ -156,6 +156,10 @@ export default function TeamScreen() {
         Relationships (CRM)
       </ThemedText>
 
+      <ThemedText type="link" onPress={() => router.push("/experiences-admin")}>
+        Experiences & menus
+      </ThemedText>
+
       <ThemedView style={styles.form}>
         <TextInput
           style={styles.input}
