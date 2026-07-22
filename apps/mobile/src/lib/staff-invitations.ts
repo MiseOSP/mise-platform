@@ -64,7 +64,7 @@ export async function createStaffInvitation(
   email: string,
   roleName: StaffRole,
   organizationId: string = defaultOrganizationId
-): Promise<Result<StaffInvitation>> {
+): Promise<Result<StaffInvitation> & { emailError?: string | null }> {
   const normalized = email.trim().toLowerCase();
 
   if (normalized.length === 0) {
@@ -82,7 +82,29 @@ export async function createStaffInvitation(
     .single();
 
   if (error) return { data: null, error: error.message };
-  return { data: mapInvitation(data), error: null };
+
+  const invitation = mapInvitation(data);
+
+  // Best-effort: send the built-in Supabase invitation email. The DB row is the
+  // source of truth, so if email delivery fails we still return the recorded
+  // invitation and surface emailError so the UI can warn the admin.
+  const { data: sendData, error: sendError } = await supabase.functions.invoke(
+    'send-staff-invite',
+    {
+      body: {
+        email: invitation.email,
+        roleName: invitation.roleName,
+        organizationId: invitation.organizationId,
+      },
+    }
+  );
+
+  const emailError =
+    sendError?.message ??
+    (sendData && (sendData as { error?: string }).error) ??
+    null;
+
+  return { data: invitation, error: null, emailError };
 }
 
 // Revoke a still-pending invitation so it can no longer be redeemed at signup.

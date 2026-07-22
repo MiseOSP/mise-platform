@@ -72,7 +72,7 @@ export default function InviteStaffScreen() {
     }
     setSubmitting(true);
     setStatus(null);
-    const { data, error } = await createStaffInvitation(
+    const { data, error, emailError } = await createStaffInvitation(
       trimmed,
       roleName,
       organizationId
@@ -84,7 +84,11 @@ export default function InviteStaffScreen() {
     }
     if (data) {
       setEmail('');
-      setStatus(`Invited ${data.email} as ${data.roleName}.`);
+      setStatus(
+        emailError
+          ? `Invited ${data.email} as ${data.roleName}, but the email could not be sent: ${emailError}`
+          : `Invited ${data.email} as ${data.roleName}. An email is on the way.`
+      );
       void load();
     }
   }
