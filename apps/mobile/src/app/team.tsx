@@ -137,6 +137,9 @@ export default function TeamScreen() {
       <ThemedText type="link" onPress={() => router.push("/invite-staff")}>
         + Invite staff by email
       </ThemedText>
+      <ThemedText type="link" onPress={() => router.push("/memberships-admin")}>
+        + Manage Reserve memberships
+      </ThemedText>
 
       <ThemedView style={styles.form}>
         <TextInput
