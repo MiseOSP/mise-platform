@@ -7,11 +7,12 @@ import AppTabs from '@/components/app-tabs';
 import AppStripeProvider from '@/components/stripe-provider';
 import { AuthProvider } from '@/contexts/auth-context';
 import { DevRoleSwitcher } from '@/components/dev-role-switcher';
-import { Brand } from '@/constants/theme';
+import { useBranding } from '@/hooks/use-branding';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
+  const b = useBranding();
 // Mise white-label navigation theme. Built from the active Brand tokens so the
 // whole app shell (nav bar, screen backgrounds, text) matches the tenant brand
 // instead of React Navigation's stock light/dark palette. NCS is tenant #1;
@@ -21,12 +22,12 @@ const MiseNavTheme = {
   dark: false,
   colors: {
     ...DefaultTheme.colors,
-    primary: Brand.denim,
-    background: Brand.cream,
-    card: Brand.cream,
-    text: Brand.espresso,
-    border: Brand.border,
-    notification: Brand.clay,
+    primary: b.primary,
+    background: b.background,
+    card: b.surface,
+    text: b.text,
+    border: b.border,
+    notification: b.accent,
   },
 };
 
