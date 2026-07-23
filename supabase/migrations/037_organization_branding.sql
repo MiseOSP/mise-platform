@@ -32,5 +32,5 @@ alter table organizations
 -- Note: the pre-existing organizations.primary_color / logo_url columns remain.
 -- color_primary supersedes primary_color for theming; logo_url is reused as-is.
 
-comment on column organizations.brand_name is ''Tenant display name shown in-app (e.g. Nashville Chef Service). Falls back to organizations.name when null.'';
-comment on column organizations.color_primary is ''Primary action / link color (Brand.denim role). Hex string.'';
+comment on column organizations.brand_name is 'Tenant display name shown in-app (e.g. Nashville Chef Service). Falls back to organizations.name when null.';
+comment on column organizations.color_primary is 'Primary action / link color (Brand.denim role). Hex string.';
