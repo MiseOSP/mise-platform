@@ -4,6 +4,16 @@ import type { OrgRole } from '../contexts/auth-context';
 // Common shape the Home screen renders, regardless of which query produced
 // it (management/client query the base `events` table; chef queries the
 // masked `chef_visible_events` view).
+// Section 68: dietary needs are distinct rows so a chef can tell an
+// allergy (potentially life-threatening) apart from a mere preference.
+export type DietaryItem = {
+  id: string;
+  kind: 'preference' | 'intolerance' | 'allergy' | 'other';
+  label: string;
+  severity: 'mild' | 'moderate' | 'severe' | 'life_threatening' | null;
+  notes: string | null;
+};
+
 export type EventListItem = {
   id: string;
   status: string;
@@ -18,8 +28,7 @@ export type EventListItem = {
   assignmentId?: string;
   chefFee?: number | null;
   foodCostEstimate?: number | null;
-  dietaryPreferences?: string | null;
-  dietaryStatement?: string | null;
+  dietary?: DietaryItem[];
 };
 
 export async function fetchEventsForRole(
@@ -30,14 +39,14 @@ export async function fetchEventsForRole(
     const { data, error } = await supabase
       .from('chef_visible_events')
       .select(
-        'id, status, event_date, start_time, guest_count, occasion, city, state, dietary_preferences, dietary_statement, visible_address, assignment_status, assignment_id'
+        'event_id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
       )
       .order('event_date', { ascending: true });
 
     if (error) return { data: [], error: error.message };
     return {
       data: (data ?? []).map((e) => ({
-        id: e.id,
+        id: e.event_id,
         status: e.status,
         event_date: e.event_date,
         start_time: e.start_time,
@@ -46,8 +55,6 @@ export async function fetchEventsForRole(
         city: e.city,
         state: e.state,
         address: e.visible_address,
-        dietaryPreferences: e.dietary_preferences,
-        dietaryStatement: e.dietary_statement,
         assignment_status: e.assignment_status,
         assignmentId: e.assignment_id,
       })),
@@ -143,17 +150,31 @@ export async function fetchChefVisibleEvent(
   const { data, error } = await supabase
     .from('chef_visible_events')
     .select(
-      'id, status, event_date, start_time, guest_count, occasion, city, state, dietary_preferences, dietary_statement, visible_address, assignment_status, assignment_id'
+      'event_id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
     )
-    .eq('id', eventId)
+    .eq('event_id', eventId)
     .maybeSingle();
 
   if (error) return { data: null, error: error.message };
   if (!data) return { data: null, error: null };
 
+  // Section 68: pull the assigned event's dietary requirements as
+  // distinct rows (kind/label/severity) from the chef-safe view.
+  const { data: dietaryRows } = await supabase
+    .from('chef_visible_dietary')
+    .select('dietary_id, kind, label, severity, notes')
+    .eq('event_id', eventId);
+  const dietary: DietaryItem[] = (dietaryRows ?? []).map((d) => ({
+    id: d.dietary_id,
+    kind: d.kind,
+    label: d.label,
+    severity: d.severity,
+    notes: d.notes,
+  }));
+
   return {
     data: {
-      id: data.id,
+      id: data.event_id,
       status: data.status,
       event_date: data.event_date,
       start_time: data.start_time,
@@ -162,8 +183,7 @@ export async function fetchChefVisibleEvent(
       city: data.city,
       state: data.state,
       address: data.visible_address,
-      dietaryPreferences: data.dietary_preferences,
-      dietaryStatement: data.dietary_statement,
+      dietary,
       assignment_status: data.assignment_status,
       assignmentId: data.assignment_id,
     },

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/auth-context';
-import { EventListItem, fetchChefVisibleEvent } from '@/lib/events';
+import { DietaryItem, EventListItem, fetchChefVisibleEvent } from '@/lib/events';
 import { EventMenuItem, fetchEventMenuItems } from '@/lib/event-menu';
 import { respondToAssignment } from '@/lib/assignments';
 import { CompletionStep, fetchCompletionSteps, setStepCompletion } from '@/lib/completion';
@@ -27,6 +27,18 @@ import { CompletionStep, fetchCompletionSteps, setStepCompletion } from '@/lib/c
 // info must be prominent in chef views) requires a server-side view/RLS change
 // (a migration + product decision), so this screen shows a clear placeholder
 // rather than silently widening a security-sensitive view.
+
+// Order dietary items so allergies surface first, then intolerances,
+// then preferences (Section 68 safety priority).
+function dietaryRank(d: DietaryItem): number {
+  const order: Record<string, number> = {
+    allergy: 0,
+    intolerance: 1,
+    preference: 2,
+    other: 3,
+  };
+  return order[d.kind] ?? 3;
+}
 
 function formatDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
@@ -189,25 +201,37 @@ export default function EventDetailScreen() {
       </View>
 
       <View style={[styles.card, styles.dietCard]}>
-        <Text style={styles.cardTitle}>Dietary &amp; allergies</Text>
-        {event.dietaryStatement ? (
-          <Text style={styles.dietBody}>{event.dietaryStatement}</Text>
-        ) : null}
-        {event.dietaryPreferences ? (
-          <Text style={[styles.dietBody, { marginTop: event.dietaryStatement ? 8 : 0 }]}>
-            {event.dietaryPreferences}
-          </Text>
-        ) : null}
-        {!event.dietaryStatement && !event.dietaryPreferences ? (
-          <Text style={styles.muted}>
-            No dietary or allergy notes are recorded for this event. Always confirm requirements with the
-            office before shopping and service.
-          </Text>
+        <Text style={styles.cardTitle}>Dietary & allergies</Text>
+        {event.dietary && event.dietary.length > 0 ? (
+          event.dietary
+            .slice()
+            .sort((a, b) => dietaryRank(a) - dietaryRank(b))
+            .map((d) => {
+              const critical = d.kind === 'allergy';
+              return (
+                <View
+                  key={d.id}
+                  style={[styles.dietRow, critical && styles.dietRowCritical]}
+                >
+                  <Text style={[styles.dietLabel, critical && styles.dietLabelCritical]}>
+                    {critical ? '\u26A0 ' : ''}{d.label}
+                  </Text>
+                  <Text style={styles.dietMeta}>
+                    {d.kind}{d.severity ? ' \u00B7 ' + d.severity.replace('_', ' ') : ''}
+                  </Text>
+                  {d.notes ? <Text style={styles.dietNotes}>{d.notes}</Text> : null}
+                </View>
+              );
+            })
         ) : (
-          <Text style={styles.dietHint}>
-            Always reconfirm allergies directly with the office before service.
+          <Text style={styles.muted}>
+            No dietary or allergy notes are recorded for this event. Always
+            confirm requirements with the office before shopping and service.
           </Text>
         )}
+        <Text style={styles.dietHint}>
+          Always reconfirm allergies directly with the office before service.
+        </Text>
       </View>
 
       {pending && event.assignmentId ? (
@@ -285,6 +309,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   dietCard: { backgroundColor: '#fff4e5', borderWidth: 1, borderColor: '#f0c987' },
+  dietRow: { paddingVertical: 6, borderTopWidth: 1, borderTopColor: '#f0e0c0' },
+  dietRowCritical: { backgroundColor: '#fde2e1', borderRadius: 6, paddingHorizontal: 8, borderTopWidth: 0, marginTop: 4 },
+  dietLabel: { fontSize: 15, fontWeight: '600', color: '#222' },
+  dietLabelCritical: { color: '#b00020' },
+  dietMeta: { fontSize: 12, color: '#666', textTransform: 'capitalize' },
+  dietNotes: { fontSize: 13, color: '#444', marginTop: 2 },
   dietBody: { color: '#5c4a1a', fontWeight: '600' },
   dietHint: { color: '#8a6100', marginTop: 8, fontSize: 13 },
   cardTitle: { fontWeight: '700', fontSize: 16, marginBottom: 8 },
