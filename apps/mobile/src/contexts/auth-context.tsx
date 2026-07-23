@@ -72,16 +72,32 @@ async function loadMembership(authId: string): Promise<Membership> {
     .select('organization_id, roles(name), organizations(name)')
     .eq('user_id', userRow.id)
     .eq('status', 'active')
-    .is('deleted_at', null)
-    .maybeSingle();
+    .is('deleted_at', null);
 
-  const roles = membership?.roles as unknown as { name: OrgRole } | null;
-  const organizations = membership?.organizations as unknown as { name: string } | null;
+  // A user may hold several roles in one org (e.g. an owner who also cooks).
+  // Pick the highest-privilege active membership as the primary one.
+  type MemberRow = {
+    organization_id: string | null;
+    roles: { name: OrgRole } | null;
+    organizations: { name: string } | null;
+  };
+  const rows = (membership ?? []) as unknown as MemberRow[];
+  const PRIORITY: OrgRole[] = ['owner', 'admin', 'manager', 'chef', 'client'];
+  const rank = (r: OrgRole) => {
+    const i = PRIORITY.indexOf(r);
+    return i === -1 ? PRIORITY.length : i;
+  };
+  const primary =
+    rows.length > 0
+      ? [...rows].sort((a, b) => rank(a.roles?.name ?? null) - rank(b.roles?.name ?? null))[0]
+      : null;
+  const roles = primary?.roles ?? null;
+  const organizations = primary?.organizations ?? null;
 
   return {
     userId: userRow.id as string,
     role: roles?.name ?? null,
-    organizationId: (membership?.organization_id as string | undefined) ?? null,
+    organizationId: (primary?.organization_id as string | undefined) ?? null,
     organizationName: organizations?.name ?? null,
   };
 }
