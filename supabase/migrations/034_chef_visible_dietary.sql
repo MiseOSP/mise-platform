@@ -7,7 +7,8 @@
 
 -- View 1: events a chef is assigned to, with need-to-know fields only.
 -- Address is withheld until 15 hours before the event start.
-create or replace view chef_visible_events as
+drop view if exists chef_visible_events;
+create view chef_visible_events as
 select
   e.id as event_id,
   e.organization_id,
@@ -43,7 +44,8 @@ grant select on chef_visible_events to authenticated;
 -- chef only ever sees dietary rows for their assigned event's client.
 -- Section 68: expose kind, label, severity, notes so preferences,
 -- intolerances and allergies are clearly distinguished.
-create or replace view chef_visible_dietary as
+drop view if exists chef_visible_dietary;
+create view chef_visible_dietary as
 select
   e.id as event_id,
   dr.id as dietary_id,
