@@ -6,6 +6,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import AppStripeProvider from '@/components/stripe-provider';
 import { AuthProvider } from '@/contexts/auth-context';
+import { DevRoleSwitcher } from '@/components/dev-role-switcher';
 import { Brand } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -36,6 +37,7 @@ const MiseNavTheme = {
         <ThemeProvider value={MiseNavTheme}>
           <AnimatedSplashOverlay />
           <AppTabs />
+        <DevRoleSwitcher />
         </ThemeProvider>
       </AppStripeProvider>
     </AuthProvider>

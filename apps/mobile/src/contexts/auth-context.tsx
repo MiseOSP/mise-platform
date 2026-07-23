@@ -26,6 +26,8 @@ type AuthContextValue = {
   role: OrgRole;
   organizationId: string | null;
   organizationName: string | null;
+  devRoleOverride: OrgRole;
+  setDevRoleOverride: (role: OrgRole) => void;
   refreshMembership: () => Promise<void>;
   signOut: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -43,6 +45,8 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   loading: true,
   ...emptyMembership,
+  devRoleOverride: null,
+  setDevRoleOverride: () => {},
   refreshMembership: async () => {},
   signOut: async () => {},
   signIn: async () => ({ error: null }),
@@ -89,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [membership, setMembership] = useState<Membership>(emptyMembership);
+  const [devRoleOverride, setDevRoleOverride] = useState<OrgRole>(null);
 
   const applyMembership = useCallback(async (authId: string | null) => {
     if (!authId) {
@@ -145,15 +150,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       loading,
       userId: membership.userId,
-      role: membership.role,
+      role: __DEV__ && devRoleOverride ? devRoleOverride : membership.role,
       organizationId: membership.organizationId,
       organizationName: membership.organizationName,
+      devRoleOverride,
+      setDevRoleOverride,
       refreshMembership,
       signOut,
       signIn,
       signUp,
     }),
-    [session, loading, membership, refreshMembership, signOut, signIn, signUp]
+    [session, loading, membership, devRoleOverride, refreshMembership, signOut, signIn, signUp]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
