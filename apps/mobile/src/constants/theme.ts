@@ -9,11 +9,13 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    // Aligned to the Brand palette so the app chrome (ThemedView/useTheme)
+    // renders in the tenant's identity rather than generic white/grey.
+    text: '#3F332C',            // Brand.espresso
+    background: '#F5EFE5',       // Brand.cream
+    backgroundElement: '#FFFFFF',// Brand.surface (cards/inputs on cream)
+    backgroundSelected: '#ECE3D4',// slightly deeper cream for pressed/selected
+    textSecondary: '#6B5D50',    // Brand.textMuted
   },
   dark: {
     text: '#ffffff',
@@ -39,13 +41,15 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
  */
 export const Brand = {
   /** Warm paper background -- "cream" */
-  cream: '#FBF7F0',
+  cream: '#F5EFE5',
   /** Primary action / links -- "denim" */
-  denim: '#3B5A78',
+  denim: '#46627C',
   /** Primary text on cream -- "espresso" */
-  espresso: '#3A2E28',
+  espresso: '#3F332C',
   /** Accent / errors / eyebrow -- "clay" */
-  clay: '#B4674E',
+  clay: '#CD7E56',
+  /** Secondary / calm accent -- "sage" (from nashvillechefservice.com) */
+  sage: '#88937B',
 
   /** Neutral surface inside cards / inputs */
   surface: '#FFFFFF',
