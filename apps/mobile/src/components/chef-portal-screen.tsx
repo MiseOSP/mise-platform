@@ -66,6 +66,9 @@ export function ChefPortalScreen({
       <Pressable onPress={() => router.push('/library')} accessibilityRole="button">
         <ThemedText type="link">Open the operations library</ThemedText>
       </Pressable>
+      <Pressable onPress={() => router.push('/availability')} accessibilityRole="button">
+        <ThemedText type="link">Manage my availability</ThemedText>
+      </Pressable>
 
       <DashboardSummary isManagement={false} isChef={isChef} events={events} teamSize={null} />
 
