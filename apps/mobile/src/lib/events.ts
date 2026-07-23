@@ -39,7 +39,7 @@ export async function fetchEventsForRole(
     const { data, error } = await supabase
       .from('chef_visible_events')
       .select(
-        'event_id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
+        'event_id, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
       )
       .order('event_date', { ascending: true });
 
@@ -47,7 +47,7 @@ export async function fetchEventsForRole(
     return {
       data: (data ?? []).map((e) => ({
         id: e.event_id,
-        status: e.status,
+        status: e.assignment_status,
         event_date: e.event_date,
         start_time: e.start_time,
         guest_count: e.guest_count,
@@ -150,7 +150,7 @@ export async function fetchChefVisibleEvent(
   const { data, error } = await supabase
     .from('chef_visible_events')
     .select(
-      'event_id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
+      'event_id, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
     )
     .eq('event_id', eventId)
     .maybeSingle();
@@ -175,7 +175,7 @@ export async function fetchChefVisibleEvent(
   return {
     data: {
       id: data.event_id,
-      status: data.status,
+      status: data.assignment_status,
       event_date: data.event_date,
       start_time: data.start_time,
       guest_count: data.guest_count,
