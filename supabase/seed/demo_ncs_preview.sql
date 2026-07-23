@@ -22,6 +22,7 @@ declare
   v_chef_role     uuid;
   v_admin_role    uuid;
   v_client_prof   uuid;
+  v_chef_prof     uuid;
   v_experience_id uuid;
 begin
   -- Resolve the NCS org and your user (fail loudly if missing)
@@ -68,6 +69,20 @@ begin
     returning id into v_client_prof;
   end if;
 
+  -- Demo chef profile for your user (needed because events.assigned_chef_id
+  -- references chef_profiles.id, not users.id). Idempotent on org+user.
+  select id into v_chef_prof
+    from chef_profiles where organization_id = v_org_id and user_id = v_user_id limit 1;
+  if v_chef_prof is null then
+    insert into chef_profiles
+      (organization_id, user_id, bio, specialties, servsafe_verified,
+       insurance_verified, status)
+    values
+      (v_org_id, v_user_id, 'Demo chef profile created by preview seed.',
+       array['Seasonal tasting menus','Wine pairings'], true, true, 'active')
+    returning id into v_chef_prof;
+  end if;
+
   -- Pick any experience for this org if one exists (nullable otherwise)
   select id into v_experience_id
     from experiences where organization_id = v_org_id limit 1;
@@ -79,12 +94,12 @@ begin
        event_date, start_time, guest_count, occasion, address, city, state,
        client_notes, service_fee)
     values
-      (v_org_id, v_client_prof, v_experience_id, v_user_id, 'confirmed',
+      (v_org_id, v_client_prof, v_experience_id, v_chef_prof, 'confirmed',
        (now() + interval '21 days')::date, '18:30', 8, 'Anniversary Dinner (demo)',
        '123 Belle Meade Blvd', 'Nashville', 'TN',
        'Please plan a 4-course tasting menu. One guest is allergic to shellfish.',
        650);
   end if;
 
-  raise notice 'Seed complete. org=% user=% client_profile=%', v_org_id, v_user_id, v_client_prof;
+  raise notice 'Seed complete. org=% user=% client_profile=% chef_profile=%', v_org_id, v_user_id, v_client_prof, v_chef_prof;
 end $$;
