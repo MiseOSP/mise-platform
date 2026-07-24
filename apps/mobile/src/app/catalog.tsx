@@ -19,6 +19,8 @@ import {
   fetchMenuCategories,
   fetchMenuItems,
   setExperienceActive,
+  updateExperience,
+  updateMenuItem,
   setMenuItemActive,
   type Experience,
   type MenuCategory,
@@ -43,6 +45,12 @@ function ExperienceRow({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newItemNameByCategory, setNewItemNameByCategory] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState(
+    experience.startingPrice != null ? String(experience.startingPrice) : '',
+  );
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [itemPriceDraft, setItemPriceDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const loadCatalog = useCallback(async () => {
@@ -95,6 +103,51 @@ function ExperienceRow({
         </View>
       )}
 
+      {isManagement && (
+        <View style={styles.row}>
+          {editingPrice ? (
+            <>
+              <TextInput
+                style={styles.input}
+                value={priceDraft}
+                onChangeText={setPriceDraft}
+                keyboardType="decimal-pad"
+                placeholder="Starting price"
+              />
+              <Pressable
+                style={styles.smallButton}
+                disabled={busy}
+                onPress={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    const t = priceDraft.trim();
+                    await updateExperience(experience.id, {
+                      startingPrice: t ? Number(t) : null,
+                    });
+                    setEditingPrice(false);
+                    onChanged();
+                  } catch (e: any) {
+                    setError(e.message ?? 'Failed to update price.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <Text style={styles.smallButtonText}>{busy ? 'Saving...' : 'Save'}</Text>
+              </Pressable>
+              <Pressable onPress={() => setEditingPrice(false)}>
+                <Text style={styles.muted}>Cancel</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable style={styles.smallButton} onPress={() => setEditingPrice(true)}>
+              <Text style={styles.smallButtonText}>Edit price</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
       {expanded && (
         <View style={styles.catalogSection}>
           {loadingCatalog && <ActivityIndicator />}
@@ -121,6 +174,55 @@ function ExperienceRow({
                       }}
                     />
                   )}
+                  {isManagement &&
+                    (editingItemId === item.id ? (
+                      <View style={styles.inlineForm}>
+                        <TextInput
+                          style={styles.inlineInput}
+                          value={itemPriceDraft}
+                          onChangeText={setItemPriceDraft}
+                          keyboardType="decimal-pad"
+                          placeholder="Price add-on"
+                        />
+                        <Pressable
+                          style={styles.smallButton}
+                          disabled={busy}
+                          onPress={async () => {
+                            setBusy(true);
+                            setError(null);
+                            try {
+                              const t = itemPriceDraft.trim();
+                              await updateMenuItem(item.id, {
+                                priceModifier: t ? Number(t) : null,
+                              });
+                              setEditingItemId(null);
+                              onChanged();
+                            } catch (e: any) {
+                              setError(e.message ?? 'Failed to update price.');
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          <Text style={styles.smallButtonText}>{busy ? 'Saving...' : 'Save'}</Text>
+                        </Pressable>
+                        <Pressable onPress={() => setEditingItemId(null)}>
+                          <Text style={styles.muted}>Cancel</Text>
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <Pressable
+                        style={styles.smallButton}
+                        onPress={() => {
+                          setEditingItemId(item.id);
+                          setItemPriceDraft(
+                            item.priceModifier != null ? String(item.priceModifier) : '',
+                          );
+                        }}
+                      >
+                        <Text style={styles.smallButtonText}>Edit price</Text>
+                      </Pressable>
+                    ))}
                 </View>
               ))}
               {isManagement && (

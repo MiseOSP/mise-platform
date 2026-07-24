@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { AdminDashboardScreen } from '@/components/admin-dashboard-screen';
 import { AuthScreen } from '@/components/auth-screen';
@@ -9,8 +10,84 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { createOrganizationForCurrentUser } from '@/lib/organizations';
+import { Brand } from '@/constants/theme';
 
 const MANAGEMENT_ROLES = new Set(['owner', 'admin', 'manager']);
+
+// Public landing shown to visitors with no session (v2.0 Sections 18, 28, 32).
+// Intake must be reachable WITHOUT an account, so the front door offers a
+// primary "Start an inquiry" path, a secondary "Browse experiences" path into
+// Signature Experience discovery, and a "Sign in" for returning clients and
+// staff. Sign-in is revealed in place rather than gating the whole app behind a
+// login wall.
+function PublicLanding() {
+  const router = useRouter();
+  const [showAuth, setShowAuth] = useState(false);
+
+  if (showAuth) {
+    return (
+      <ThemedView style={styles.landing}>
+        <AuthScreen />
+        <Pressable
+          onPress={() => setShowAuth(false)}
+          accessibilityRole="button"
+          style={styles.landingBackLink}
+        >
+          <ThemedText style={styles.landingLinkText}>Back</ThemedText>
+        </Pressable>
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.landing}>
+      <ThemedView style={styles.landingCard}>
+        <ThemedText style={styles.eyebrow}>Nashville Chef Service</ThemedText>
+        <ThemedText type="title" style={styles.landingTitle}>
+          Unforgettable dining, brought to your table
+        </ThemedText>
+        <ThemedText style={styles.landingBody}>
+          Tell us what you have in mind and we&apos;ll craft the experience with you. No account
+          needed to get started.
+        </ThemedText>
+
+        <Pressable
+          onPress={() => router.push('/inquiry')}
+          accessibilityRole="button"
+          style={styles.primaryButton}
+        >
+          <ThemedText style={styles.primaryButtonText}>Start an inquiry</ThemedText>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/discover')}
+          accessibilityRole="button"
+          style={styles.browseButton}
+        >
+          <ThemedText style={styles.browseButtonText}>Browse Signature Experiences</ThemedText>
+        </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/reserve')}
+            accessibilityRole="button"
+            style={styles.browseButton}
+          >
+            <ThemedText style={styles.browseButtonText}>Explore NCS Reserve</ThemedText>
+          </Pressable>
+
+        <Pressable
+          onPress={() => setShowAuth(true)}
+          accessibilityRole="button"
+          style={styles.secondaryButton}
+        >
+          <ThemedText style={styles.secondaryButtonText}>
+            Returning client or team member? Sign in
+          </ThemedText>
+        </Pressable>
+      </ThemedView>
+    </ThemedView>
+  );
+}
 
 export default function HomeScreen() {
   const { session, loading, role, organizationId, organizationName, refreshMembership } = useAuth();
@@ -30,7 +107,7 @@ export default function HomeScreen() {
   }
 
   if (!session) {
-    return <AuthScreen />;
+    return <PublicLanding />;
   }
 
   if (!organizationId) {
@@ -112,6 +189,8 @@ export default function HomeScreen() {
   );
 }
 
+// Brand palette lives in shared design tokens (v2.0 Section 43); see
+// constants/theme.ts. This screen consumes Brand.* rather than redefining hex.
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -138,5 +217,81 @@ const styles = StyleSheet.create({
   },
   error: {
     color: '#d33',
+  },
+  landing: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: Brand.cream,
+  },
+  landingCard: {
+    width: '100%',
+    maxWidth: 480,
+    gap: 12,
+    backgroundColor: Brand.cream,
+  },
+  eyebrow: {
+    color: Brand.clay,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontSize: 12,
+  },
+  landingTitle: {
+    color: Brand.espresso,
+  },
+  landingBody: {
+    color: Brand.espresso,
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  primaryButton: {
+    backgroundColor: Brand.denim,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    color: Brand.cream,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  browseButton: {
+    borderWidth: 1,
+    borderColor: Brand.denim,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
+    backgroundColor: Brand.surface,
+  },
+  browseButtonText: {
+    color: Brand.denim,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: Brand.denim,
+    fontWeight: '600',
+  },
+  landingBackLink: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    ...Platform.select({ web: { cursor: 'pointer' }, default: {} }),
+  },
+  landingLinkText: {
+    color: Brand.denim,
+    fontWeight: '600',
   },
 });

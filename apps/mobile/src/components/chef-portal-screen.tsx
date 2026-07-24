@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { DashboardSummary } from '@/components/dashboard-summary';
 import { EventRow } from '@/components/event-row';
@@ -25,6 +26,7 @@ export function ChefPortalScreen({
   const [eventsError, setEventsError] = useState<string | null>(null);
 
   const isChef = role === 'chef';
+  const router = useRouter();
 
   const loadEvents = useCallback(async () => {
     if (!organizationId) return;
@@ -58,6 +60,15 @@ export function ChefPortalScreen({
     <ThemedView style={styles.container}>
       <ThemedText type="title">{organizationName ?? 'Your organization'}</ThemedText>
       <ThemedText>Signed in as {role ?? 'member'}.</ThemedText>
+      <Pressable onPress={() => router.push('/my-assignments')} accessibilityRole="button">
+        <ThemedText type="link">View all my assignments</ThemedText>
+      </Pressable>
+      <Pressable onPress={() => router.push('/library')} accessibilityRole="button">
+        <ThemedText type="link">Open the operations library</ThemedText>
+      </Pressable>
+      <Pressable onPress={() => router.push('/availability')} accessibilityRole="button">
+        <ThemedText type="link">Manage my availability</ThemedText>
+      </Pressable>
 
       <DashboardSummary isManagement={false} isChef={isChef} events={events} teamSize={null} />
 

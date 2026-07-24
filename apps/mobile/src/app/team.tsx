@@ -6,6 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { supabase } from '@/lib/supabase';
 import { addClientByEmail, fetchClients, ClientListItem } from '@/lib/clients';
+import { useRouter } from 'expo-router';
 
 type MemberRow = {
   id: string;
@@ -19,6 +20,7 @@ const ASSIGNABLE_ROLES = ['admin', 'manager', 'chef', 'client'];
 
 export default function TeamScreen() {
   const { organizationId } = useAuth();
+  const router = useRouter();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -132,6 +134,39 @@ export default function TeamScreen() {
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title">Team</ThemedText>
+      <ThemedText type="link" onPress={() => router.push("/invite-staff")}>
+        + Invite staff by email
+      </ThemedText>
+      <ThemedText type="link" onPress={() => router.push("/memberships-admin")}>
+        + Manage Reserve memberships
+      </ThemedText>
+      <ThemedText type="link" onPress={() => router.push("/event-queue")}>
+        + View event queue
+      </ThemedText>
+
+      <ThemedText type="link" onPress={() => router.push("/chef-assignments")}>
+        Chef assignments
+      </ThemedText>
+
+      <ThemedText type="link" onPress={() => router.push("/financials-admin")}>
+        Event financials
+      </ThemedText>
+
+      <ThemedText type="link" onPress={() => router.push("/crm")}>
+        Relationships (CRM)
+      </ThemedText>
+
+      <ThemedText type="link" onPress={() => router.push("/experiences-admin")}>
+        Experiences & menus
+      </ThemedText>
+
+      <ThemedText type="link" onPress={() => router.push("/calendar")}>
+        Calendar
+      </ThemedText>
+
+      <ThemedText type="link" onPress={() => router.push("/reports")}>
+        Reports
+      </ThemedText>
 
       <ThemedView style={styles.form}>
         <TextInput

@@ -12,11 +12,28 @@ import { supabase } from '../lib/supabase';
 
 export type OrgRole = 'owner' | 'admin' | 'manager' | 'chef' | 'client' | null;
 
+// Per-tenant branding pulled from the organizations row (migration 037).
+// Any null field falls back to the canonical Brand palette in constants/theme.
+export type OrgBranding = {
+  brandName: string | null;
+  brandTagline: string | null;
+  colorBackground: string | null;
+  colorText: string | null;
+  colorPrimary: string | null;
+  colorSecondary: string | null;
+  colorAccent: string | null;
+  colorSurface: string | null;
+  colorBorder: string | null;
+  colorTextMuted: string | null;
+  fontFamily: string | null;
+};
+
 type Membership = {
   userId: string | null;
   role: OrgRole;
   organizationId: string | null;
   organizationName: string | null;
+  branding: OrgBranding | null;
 };
 
 type AuthContextValue = {
@@ -26,6 +43,9 @@ type AuthContextValue = {
   role: OrgRole;
   organizationId: string | null;
   organizationName: string | null;
+  branding: OrgBranding | null;
+  devRoleOverride: OrgRole;
+  setDevRoleOverride: (role: OrgRole) => void;
   refreshMembership: () => Promise<void>;
   signOut: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -37,12 +57,15 @@ const emptyMembership: Membership = {
   role: null,
   organizationId: null,
   organizationName: null,
+  branding: null,
 };
 
 const AuthContext = createContext<AuthContextValue>({
   session: null,
   loading: true,
   ...emptyMembership,
+  devRoleOverride: null,
+  setDevRoleOverride: () => {},
   refreshMembership: async () => {},
   signOut: async () => {},
   signIn: async () => ({ error: null }),
@@ -65,20 +88,66 @@ async function loadMembership(authId: string): Promise<Membership> {
 
   const { data: membership } = await supabase
     .from('organization_members')
-    .select('organization_id, roles(name), organizations(name)')
+    .select('organization_id, roles(name), organizations(name, brand_name, brand_tagline, color_background, color_text, color_primary, color_secondary, color_accent, color_surface, color_border, color_text_muted, font_family)')
     .eq('user_id', userRow.id)
     .eq('status', 'active')
-    .is('deleted_at', null)
-    .maybeSingle();
+    .is('deleted_at', null);
 
-  const roles = membership?.roles as unknown as { name: OrgRole } | null;
-  const organizations = membership?.organizations as unknown as { name: string } | null;
+  // A user may hold several roles in one org (e.g. an owner who also cooks).
+  // Pick the highest-privilege active membership as the primary one.
+  type MemberRow = {
+    organization_id: string | null;
+    roles: { name: OrgRole } | null;
+    organizations: {
+      name: string;
+      brand_name: string | null;
+      brand_tagline: string | null;
+      color_background: string | null;
+      color_text: string | null;
+      color_primary: string | null;
+      color_secondary: string | null;
+      color_accent: string | null;
+      color_surface: string | null;
+      color_border: string | null;
+      color_text_muted: string | null;
+      font_family: string | null;
+    } | null;
+  };
+  const rows = (membership ?? []) as unknown as MemberRow[];
+  const PRIORITY: OrgRole[] = ['owner', 'admin', 'manager', 'chef', 'client'];
+  const rank = (r: OrgRole) => {
+    const i = PRIORITY.indexOf(r);
+    return i === -1 ? PRIORITY.length : i;
+  };
+  const primary =
+    rows.length > 0
+      ? [...rows].sort((a, b) => rank(a.roles?.name ?? null) - rank(b.roles?.name ?? null))[0]
+      : null;
+  const roles = primary?.roles ?? null;
+  const organizations = primary?.organizations ?? null;
+  const org = primary?.organizations ?? null;
+  const branding: OrgBranding | null = org
+    ? {
+        brandName: org.brand_name,
+        brandTagline: org.brand_tagline,
+        colorBackground: org.color_background,
+        colorText: org.color_text,
+        colorPrimary: org.color_primary,
+        colorSecondary: org.color_secondary,
+        colorAccent: org.color_accent,
+        colorSurface: org.color_surface,
+        colorBorder: org.color_border,
+        colorTextMuted: org.color_text_muted,
+        fontFamily: org.font_family,
+      }
+    : null;
 
   return {
     userId: userRow.id as string,
     role: roles?.name ?? null,
-    organizationId: (membership?.organization_id as string | undefined) ?? null,
+    organizationId: (primary?.organization_id as string | undefined) ?? null,
     organizationName: organizations?.name ?? null,
+    branding,
   };
 }
 
@@ -89,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [membership, setMembership] = useState<Membership>(emptyMembership);
+  const [devRoleOverride, setDevRoleOverride] = useState<OrgRole>(null);
 
   const applyMembership = useCallback(async (authId: string | null) => {
     if (!authId) {
@@ -145,15 +215,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       loading,
       userId: membership.userId,
-      role: membership.role,
+      role: __DEV__ && devRoleOverride ? devRoleOverride : membership.role,
       organizationId: membership.organizationId,
       organizationName: membership.organizationName,
+      branding: membership.branding,
+      devRoleOverride,
+      setDevRoleOverride,
       refreshMembership,
       signOut,
       signIn,
       signUp,
     }),
-    [session, loading, membership, refreshMembership, signOut, signIn, signUp]
+    [session, loading, membership, devRoleOverride, refreshMembership, signOut, signIn, signUp]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

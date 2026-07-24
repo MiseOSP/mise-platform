@@ -4,18 +4,43 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
+import AppStripeProvider from '@/components/stripe-provider';
 import { AuthProvider } from '@/contexts/auth-context';
+import { DevRoleSwitcher } from '@/components/dev-role-switcher';
+import { useBranding } from '@/hooks/use-branding';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
+  const b = useBranding();
+// Mise white-label navigation theme. Built from the active Brand tokens so the
+// whole app shell (nav bar, screen backgrounds, text) matches the tenant brand
+// instead of React Navigation's stock light/dark palette. NCS is tenant #1;
+// per-tenant runtime override will layer on top of this later.
+const MiseNavTheme = {
+  ...DefaultTheme,
+  dark: false,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: b.primary,
+    background: b.background,
+    card: b.surface,
+    text: b.text,
+    border: b.border,
+    notification: b.accent,
+  },
+};
+
   const colorScheme = useColorScheme();
   return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AnimatedSplashOverlay />
-        <AppTabs />
-      </ThemeProvider>
+      <AppStripeProvider>
+        <ThemeProvider value={MiseNavTheme}>
+          <AnimatedSplashOverlay />
+          <AppTabs />
+        <DevRoleSwitcher />
+        </ThemeProvider>
+      </AppStripeProvider>
     </AuthProvider>
   );
 }

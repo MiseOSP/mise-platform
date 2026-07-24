@@ -57,3 +57,115 @@ export async function respondToAssignment(assignmentId: string, accept: boolean)
 
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------------------
+// Admin/staff read helpers for the chef assignment UI (Phase 4, spec S90).
+// These are org-scoped reads; RLS on chef_profiles / event_assignments is the
+// real authorization boundary (spec S51/S60 -- UI visibility is not authz).
+// ---------------------------------------------------------------------------
+
+export type OrgChef = {
+  chefProfileId: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  status: string;
+  servsafeVerified: boolean;
+  insuranceVerified: boolean;
+};
+
+// Lists the active chefs in an organization, with their display name/email,
+// so an admin can pick from a list instead of typing an email by hand.
+export async function listChefsForOrg(organizationId: string): Promise<OrgChef[]> {
+  const { data, error } = await supabase
+    .from('chef_profiles')
+    .select(
+      'id, user_id, status, servsafe_verified, insurance_verified, users:user_id ( first_name, last_name, email )'
+    )
+    .eq('organization_id', organizationId)
+    .is('deleted_at', null)
+    .order('status', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => {
+    const u = Array.isArray(row.users) ? row.users[0] : row.users;
+    const first = u?.first_name?.trim() ?? '';
+    const last = u?.last_name?.trim() ?? '';
+    const fullName = `${first} ${last}`.trim() || (u?.email ?? 'Unnamed chef');
+    return {
+      chefProfileId: row.id as string,
+      userId: row.user_id as string,
+      fullName,
+      email: (u?.email as string) ?? '',
+      status: (row.status as string) ?? 'pending',
+      servsafeVerified: !!row.servsafe_verified,
+      insuranceVerified: !!row.insurance_verified,
+    };
+  });
+}
+
+export type EventAssignment = {
+  assignmentId: string;
+  chefProfileId: string;
+  chefName: string;
+  chefEmail: string;
+  role: string;
+  status: string;
+  acceptedAt: string | null;
+};
+
+// Lists the chefs currently assigned to a single event, newest logic first.
+export async function listAssignmentsForEvent(eventId: string): Promise<EventAssignment[]> {
+  const { data, error } = await supabase
+    .from('event_assignments')
+    .select(
+      'id, role, status, accepted_at, chef_id, chef_profiles:chef_id ( id, users:user_id ( first_name, last_name, email ) )'
+    )
+    .eq('event_id', eventId)
+    .is('deleted_at', null)
+    .order('role', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => {
+    const cp = Array.isArray(row.chef_profiles) ? row.chef_profiles[0] : row.chef_profiles;
+    const u = cp && (Array.isArray(cp.users) ? cp.users[0] : cp.users);
+    const first = u?.first_name?.trim() ?? '';
+    const last = u?.last_name?.trim() ?? '';
+    const chefName = `${first} ${last}`.trim() || (u?.email ?? 'Chef');
+    return {
+      assignmentId: row.id as string,
+      chefProfileId: (row.chef_id as string) ?? '',
+      chefName,
+      chefEmail: (u?.email as string) ?? '',
+      role: (row.role as string) ?? 'lead_chef',
+      status: (row.status as string) ?? 'pending',
+      acceptedAt: (row.accepted_at as string) ?? null,
+    };
+  });
+}
+
+// Assigns a chef to an event directly by their chef_profiles id (used when the
+// admin picked from the chef list). Mirrors assignChefByEmail's insert.
+export async function assignChefById(
+  eventId: string,
+  chefProfileId: string,
+  role?: string
+): Promise<void> {
+  const { error } = await supabase.from('event_assignments').insert({
+    event_id: eventId,
+    chef_id: chefProfileId,
+    role: role?.trim() || 'lead_chef',
+  });
+  if (error) throw error;
+}
+
+// Soft-removes an assignment (sets deleted_at). Management-only via RLS.
+export async function removeAssignment(assignmentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('event_assignments')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', assignmentId);
+  if (error) throw error;
+}

@@ -5,6 +5,12 @@ import { supabase } from './supabase';
 // active, non-deleted rows. Write access: management only (enforced by RLS
 // migration 011; these helpers assume the caller has already checked role
 // client-side for a good UX, but the database is the real gatekeeper).
+//
+// Public discovery (v2.0 Sections 28, 34): experiences an operator has opted
+// into public listing (public_listed = true) are readable by anon through the
+// experiences_select_public policy added in migration 025. fetchPublicExperiences
+// below is the read path for the unauthenticated Signature Experience discovery
+// screen; it selects only marketing-safe fields.
 
 export type Experience = {
   id: string;
@@ -14,6 +20,22 @@ export type Experience = {
   startingPrice: number | null;
   imageUrl: string | null;
   active: boolean;
+};
+
+// Public-facing marketing view of an experience for the discovery screen
+// (v2.0 Section 34). Only fields safe to expose to anonymous visitors.
+export type PublicExperience = {
+  id: string;
+  name: string;
+  description: string | null;
+  positioning: string | null;
+  serviceFormat: string | null;
+  typicalGroupSize: string | null;
+  leadTimeNote: string | null;
+  dietaryStatement: string | null;
+  startingPrice: number | null;
+  imageUrl: string | null;
+  displayOrder: number;
 };
 
 export type MenuCategory = {
@@ -41,6 +63,22 @@ function mapExperience(row: any): Experience {
     startingPrice: row.starting_price === null ? null : Number(row.starting_price),
     imageUrl: row.image_url,
     active: row.active,
+  };
+}
+
+function mapPublicExperience(row: any): PublicExperience {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    positioning: row.positioning,
+    serviceFormat: row.service_format,
+    typicalGroupSize: row.typical_group_size,
+    leadTimeNote: row.lead_time_note,
+    dietaryStatement: row.dietary_statement,
+    startingPrice: row.starting_price === null ? null : Number(row.starting_price),
+    imageUrl: row.image_url,
+    displayOrder: row.display_order ?? 0,
   };
 }
 
@@ -73,6 +111,29 @@ export async function fetchExperiences(organizationId: string): Promise<Experien
     .order('name');
   if (error) throw error;
   return (data ?? []).map(mapExperience);
+}
+
+// Public Signature Experience discovery (v2.0 Sections 28, 34). Readable
+// WITHOUT a session via the experiences_select_public RLS policy (migration
+// 025), which returns only public_listed + active + non-deleted rows. We scope
+// by organizationId so a given brand's front door shows its own experiences;
+// the org id comes from public config, not a hard-coded value (v2.0 Section 98).
+export async function fetchPublicExperiences(
+  organizationId: string,
+): Promise<PublicExperience[]> {
+  const { data, error } = await supabase
+    .from('experiences')
+    .select(
+      'id, name, description, positioning, service_format, typical_group_size, lead_time_note, dietary_statement, starting_price, image_url, display_order',
+    )
+    .eq('organization_id', organizationId)
+    .eq('public_listed', true)
+    .eq('active', true)
+    .is('deleted_at', null)
+    .order('display_order')
+    .order('name');
+  if (error) throw error;
+  return (data ?? []).map(mapPublicExperience);
 }
 
 export async function createExperience(input: {
@@ -147,5 +208,56 @@ export async function createMenuItem(input: {
 
 export async function setMenuItemActive(menuItemId: string, active: boolean): Promise<void> {
   const { error } = await supabase.from('menu_items').update({ active }).eq('id', menuItemId);
+  if (error) throw error;
+}
+
+export async function updateExperience(
+  experienceId: string,
+  input: { name?: string; description?: string; startingPrice?: number | null },
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.description !== undefined)
+    patch.description = input.description.trim() || null;
+  if (input.startingPrice !== undefined)
+    patch.starting_price = input.startingPrice ?? null;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase
+    .from('experiences')
+    .update(patch)
+    .eq('id', experienceId);
+  if (error) throw error;
+}
+
+export async function updateMenuCategory(
+  categoryId: string,
+  input: { name?: string; displayOrder?: number },
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.displayOrder !== undefined) patch.display_order = input.displayOrder;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase
+    .from('menu_categories')
+    .update(patch)
+    .eq('id', categoryId);
+  if (error) throw error;
+}
+
+export async function updateMenuItem(
+  menuItemId: string,
+  input: { name?: string; description?: string; priceModifier?: number | null },
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.description !== undefined)
+    patch.description = input.description.trim() || null;
+  if (input.priceModifier !== undefined)
+    patch.price_modifier = input.priceModifier ?? 0;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase
+    .from('menu_items')
+    .update(patch)
+    .eq('id', menuItemId);
   if (error) throw error;
 }

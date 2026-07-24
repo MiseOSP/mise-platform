@@ -4,6 +4,16 @@ import type { OrgRole } from '../contexts/auth-context';
 // Common shape the Home screen renders, regardless of which query produced
 // it (management/client query the base `events` table; chef queries the
 // masked `chef_visible_events` view).
+// Section 68: dietary needs are distinct rows so a chef can tell an
+// allergy (potentially life-threatening) apart from a mere preference.
+export type DietaryItem = {
+  id: string;
+  kind: 'preference' | 'intolerance' | 'allergy' | 'other';
+  label: string;
+  severity: 'mild' | 'moderate' | 'severe' | 'life_threatening' | null;
+  notes: string | null;
+};
+
 export type EventListItem = {
   id: string;
   status: string;
@@ -18,6 +28,7 @@ export type EventListItem = {
   assignmentId?: string;
   chefFee?: number | null;
   foodCostEstimate?: number | null;
+  dietary?: DietaryItem[];
 };
 
 export async function fetchEventsForRole(
@@ -28,15 +39,15 @@ export async function fetchEventsForRole(
     const { data, error } = await supabase
       .from('chef_visible_events')
       .select(
-        'id, status, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
+        'event_id, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
       )
       .order('event_date', { ascending: true });
 
     if (error) return { data: [], error: error.message };
     return {
       data: (data ?? []).map((e) => ({
-        id: e.id,
-        status: e.status,
+        id: e.event_id,
+        status: e.assignment_status,
         event_date: e.event_date,
         start_time: e.start_time,
         guest_count: e.guest_count,
@@ -126,4 +137,56 @@ export async function createEvent(input: CreateEventInput): Promise<void> {
     food_cost_estimate: input.foodCostEstimate ?? null,
   });
   if (insertError) throw insertError;
+}
+
+// Fetches a single event from the chef-safe `chef_visible_events` view by id.
+// Returns the same masked shape as the chef branch of fetchEventsForRole
+// (address stays null until ~15h before the event; no internal notes). RLS on
+// the underlying view restricts this to the chef's own assigned events
+// (migration 005). Used by the chef event-detail screen (Phase 5, spec S91).
+export async function fetchChefVisibleEvent(
+  eventId: string
+): Promise<{ data: EventListItem | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('chef_visible_events')
+    .select(
+      'event_id, event_date, start_time, guest_count, occasion, city, state, visible_address, assignment_status, assignment_id'
+    )
+    .eq('event_id', eventId)
+    .maybeSingle();
+
+  if (error) return { data: null, error: error.message };
+  if (!data) return { data: null, error: null };
+
+  // Section 68: pull the assigned event's dietary requirements as
+  // distinct rows (kind/label/severity) from the chef-safe view.
+  const { data: dietaryRows } = await supabase
+    .from('chef_visible_dietary')
+    .select('dietary_id, kind, label, severity, notes')
+    .eq('event_id', eventId);
+  const dietary: DietaryItem[] = (dietaryRows ?? []).map((d) => ({
+    id: d.dietary_id,
+    kind: d.kind,
+    label: d.label,
+    severity: d.severity,
+    notes: d.notes,
+  }));
+
+  return {
+    data: {
+      id: data.event_id,
+      status: data.assignment_status,
+      event_date: data.event_date,
+      start_time: data.start_time,
+      guest_count: data.guest_count,
+      occasion: data.occasion,
+      city: data.city,
+      state: data.state,
+      address: data.visible_address,
+      dietary,
+      assignment_status: data.assignment_status,
+      assignmentId: data.assignment_id,
+    },
+    error: null,
+  };
 }
