@@ -19,6 +19,7 @@ import {
   fetchMenuCategories,
   fetchMenuItems,
   setExperienceActive,
+  updateExperience,
   setMenuItemActive,
   type Experience,
   type MenuCategory,
@@ -43,6 +44,10 @@ function ExperienceRow({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newItemNameByCategory, setNewItemNameByCategory] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState(
+    experience.startingPrice != null ? String(experience.startingPrice) : '',
+  );
   const [error, setError] = useState<string | null>(null);
 
   const loadCatalog = useCallback(async () => {
@@ -92,6 +97,51 @@ function ExperienceRow({
               }
             }}
           />
+        </View>
+      )}
+
+      {isManagement && (
+        <View style={styles.row}>
+          {editingPrice ? (
+            <>
+              <TextInput
+                style={styles.input}
+                value={priceDraft}
+                onChangeText={setPriceDraft}
+                keyboardType="decimal-pad"
+                placeholder="Starting price"
+              />
+              <Pressable
+                style={styles.smallButton}
+                disabled={busy}
+                onPress={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    const t = priceDraft.trim();
+                    await updateExperience(experience.id, {
+                      startingPrice: t ? Number(t) : null,
+                    });
+                    setEditingPrice(false);
+                    onChanged();
+                  } catch (e: any) {
+                    setError(e.message ?? 'Failed to update price.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <Text style={styles.smallButtonText}>{busy ? 'Saving...' : 'Save'}</Text>
+              </Pressable>
+              <Pressable onPress={() => setEditingPrice(false)}>
+                <Text style={styles.muted}>Cancel</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable style={styles.smallButton} onPress={() => setEditingPrice(true)}>
+              <Text style={styles.smallButtonText}>Edit price</Text>
+            </Pressable>
+          )}
         </View>
       )}
 

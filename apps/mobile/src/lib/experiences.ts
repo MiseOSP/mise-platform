@@ -210,3 +210,54 @@ export async function setMenuItemActive(menuItemId: string, active: boolean): Pr
   const { error } = await supabase.from('menu_items').update({ active }).eq('id', menuItemId);
   if (error) throw error;
 }
+
+export async function updateExperience(
+  experienceId: string,
+  input: { name?: string; description?: string; startingPrice?: number | null },
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.description !== undefined)
+    patch.description = input.description.trim() || null;
+  if (input.startingPrice !== undefined)
+    patch.starting_price = input.startingPrice ?? null;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase
+    .from('experiences')
+    .update(patch)
+    .eq('id', experienceId);
+  if (error) throw error;
+}
+
+export async function updateMenuCategory(
+  categoryId: string,
+  input: { name?: string; displayOrder?: number },
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.displayOrder !== undefined) patch.display_order = input.displayOrder;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase
+    .from('menu_categories')
+    .update(patch)
+    .eq('id', categoryId);
+  if (error) throw error;
+}
+
+export async function updateMenuItem(
+  menuItemId: string,
+  input: { name?: string; description?: string; priceModifier?: number },
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name.trim();
+  if (input.description !== undefined)
+    patch.description = input.description.trim() || null;
+  if (input.priceModifier !== undefined)
+    patch.price_modifier = input.priceModifier ?? 0;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase
+    .from('menu_items')
+    .update(patch)
+    .eq('id', menuItemId);
+  if (error) throw error;
+}
