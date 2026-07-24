@@ -246,7 +246,7 @@ export async function updateMenuCategory(
 
 export async function updateMenuItem(
   menuItemId: string,
-  input: { name?: string; description?: string; priceModifier?: number },
+  input: { name?: string; description?: string; priceModifier?: number | null },
 ): Promise<void> {
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name.trim();
